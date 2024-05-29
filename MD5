@@ -1,6 +1,6 @@
-96df0e574d44a6b4335c281ab7ab23e3 *DESCRIPTION
+0cf50ed6128884800cd3bf13f1a4f886 *DESCRIPTION
 bd9209ad3f804e678179708d1b2a618d *NAMESPACE
-c3c37c23e8f205c3edfcc39ea937828a *NEWS.md
+602c371c3b2d5a4a24c2a2997911740e *NEWS.md
 d3ff178cd45256f06e0058521d410273 *R/GIRFandGFEVD.R
 a08a174a09f3e81da328d888d3744c6a *R/MAINest.R
 37e6a1085e0d7bc4ed27386b0ff0ba12 *R/RcppExports.R
@@ -32,16 +32,16 @@ d0789a8db1e989639dd7463f7339c756 *R/residuals.R
 dab8565877b1a2963d1927fa83ffbfe8 *R/sstvars.R
 0d2ba16fa34fee7821e49964dcd4a4ce *R/standardErrors.R
 50df1e109417f0d5fd6d0ef88ff09969 *R/uncondMoments.R
-ff9c7c48e381514dd9308acd08ef5a66 *README.md
+dd3e071041cf6f82f990cd110974dc6f *README.md
 52446674195ad90e686fd9fd6e1c33ef *build/vignette.rds
-6ee603055d78519b30c83de118973aa0 *configure
+22c68e7473c4afe3d4be803675bc5f6a *configure
 2d5ca367ab4b54b27228113cac17d565 *data/acidata.rda
 01070dd73721f54addde06eb0947fc1f *data/gdpdef.rda
 25df2f13ec88f6e65dc297dcaa7fe62b *data/usacpu.rda
 45c1928445b36633727a1e0fd4d3d131 *data/usamone.rda
 faae22ce4d046129d4351f5eeb4f80a5 *inst/doc/sstvars-vignette.R
 d53a65d1e18142fedabd94d999adba5c *inst/doc/sstvars-vignette.Rnw
-fe980db589afbb9949f67ca9839c2452 *inst/doc/sstvars-vignette.pdf
+60f559e61d5fabf4373abc77c6aa934e *inst/doc/sstvars-vignette.pdf
 57dcbdabaf318f90825b9a90876a6c42 *man/GAfit.Rd
 6bd907042af01fadeebf915ea18c5d28 *man/GFEVD.Rd
 98e50aed68eccd5b913f2701aabd23ca *man/GIRF.Rd
@@ -156,8 +156,6 @@ f64a9e9048a19a119274ab248ad790ed *man/vech.Rd
 ce8471d48c4a3c952cd967e7881d4d6f *man/warn_eigens.Rd
 b9683455b963d91715c22e61a408b412 *src/Gaussian_densities_Cpp.cpp
 353e2c6b72dce049fdb46cae7be9d899 *src/Gaussian_densities_const_Cpp.cpp
-f326d77c15aead59136b9c17a176cdc7 *src/Makevars
-b7cb0d7d8104b77d3d014015ebaed012 *src/Makevars.os
 e62585629948e7dd143efbad43c2a6eb *src/Makevars.win
 e9a7ddac16a5b31a62a31e9f5e2b2ec9 *src/RcppExports.cpp
 7c88a1c754aad267387415f147314fb7 *src/Student_densities_Cpp.cpp
