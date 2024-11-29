@@ -22,13 +22,13 @@ excluded but the last observations is included.}
 \item{means}{a \eqn{(T \times d)} matrix such that the \eqn{i}th row contains the
 conditional mean of the process \eqn{\mu_{y,i}}.}
 
-\item{impact_matrices}{A a size \eqn{d\times d \times M} \code{arma::cube} (3D array in R), where each slice contains an
+\item{impact_matrices}{a size \eqn{d\times d \times M} \code{arma::cube} (3D array in R), where each slice contains an
 invertible (d x d) impact matrix of each regime.}
 
 \item{alpha_mt}{a \eqn{(T \times M)} matrix such that \code{[t, m]} contains the time t
 transition weights of the \eqn{m}th regime.}
 
-\item{distpars}{A numeric vector of length \eqn{d}, containing the degrees of freedom parameters for each component.}
+\item{distpars}{a numeric vector of length \eqn{d}, containing the degrees of freedom parameters for each component.}
 
 \item{minval}{the value that will be returned if the parameter vector does not lie in the parameter space
 (excluding the identification condition).}

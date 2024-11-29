@@ -38,8 +38,10 @@ No return value, called for its side effect of plotting the diagnostic plot.
 \details{
 Auto- and cross-correlations (types \code{"ac"} and \code{"ch"}) are calculated with the function
  \code{acf} from the package \code{stats} and the plot method for class \code{'acf'} objects is employed.
- If \code{cond_dist == "Student"}, the estimate of the degrees of freedom parameter is used in theoretical
- densities and quantiles.
+
+ If \code{cond_dist == "Student"} or \code{"ind_Student"}, the estimates of the degrees of freedom parameters is used in
+ theoretical densities and quantiles. If \code{cond_dist == "ind_skewed_t"}, the estimates of the degrees of freedom and
+ skewness parameters are used in theoretical densities and quantiles, and the quantile function is computed numerically.
 }
 \examples{
 ## Gaussian STVAR p=1, M=2 model, with weighted relative stationary densities
@@ -83,8 +85,10 @@ diagnostic_plot(mod112, resid_type="raw") # All plots for raw residuals
 \itemize{
    \item Anderson H., Vahid F. 1998. Testing multiple equation systems for common nonlinear components.
      \emph{Journal of Econometrics}, \strong{84}:1, 1-36.
+   \item Hansen B.E. 1994. Autoregressive Conditional Density estimation.
+     \emph{Journal of Econometrics}, \strong{35}:3, 705-730.
    \item Kheifets I.L., Saikkonen P.J. 2020. Stationarity and ergodicity of Vector STAR models.
-     \emph{Econometric Reviews}, \strong{39}:4, 407-414.
+     \emph{International Economic Review}, \strong{35}:3, 407-414.
    \item Lanne M., Virolainen S. 2024. A Gaussian smooth transition vector autoregressive model:
       An application to the macroeconomic effects of severe weather shocks. Unpublished working
       paper, available as arXiv:2403.14216.

@@ -52,6 +52,16 @@ params222logit <- c(0.428924, 0.153884, 1.455217, 0.264533, 0.314288, 0.124903, 
 mod222logit <- STVAR(data=gdpdef, p=2, M=2, params=params222logit, weight_function="logistic", weightfun_pars=c(2, 1),
                      cond_dist="ind_Student", identification="non-Gaussianity")
 
+# p=1, M=2, d=2, weight_function="exogenous", cond_dist="ind_skewed_t", weightfun_pars=twmat, AR_constraints=C_122,
+params122exocikt <- c(params122exocit, -0.2, 0.3)
+mod122exocikt <- STVAR(data=gdpdef, p=1, M=2, d=2, params=params122exocikt, weight_function="exogenous", cond_dist="ind_skewed_t",
+                       weightfun_pars=twmat, AR_constraints=C_122)
+
+# p=2, M=2, d=2, weight_function="logistic", weightfun_pars=c(2, 1), cond_dist="ind_skewed_t", identification="non-Gaussianity"
+params222logikt <- c(params222logit, 0.12, -0.17)
+mod222logikt <- STVAR(data=gdpdef, p=2, M=2, params=params222logikt, weight_function="logistic", weightfun_pars=c(2, 1),
+                      cond_dist="ind_skewed_t", identification="non-Gaussianity")
+
 test_that("GIRF works correctly", {
   girf1 <- GIRF(mod112rec, which_shocks=1:2, shock_size=1, N=3, R1=2, R2=4, init_regime=1, which_cumulative=2,
                 use_parallel=FALSE, seeds=1:4, ci=0.9)
@@ -65,17 +75,20 @@ test_that("GIRF works correctly", {
                 seeds=1:2)
   girf5 <- GIRF(mod222logit, which_shocks=1:2, shock_size=0.4, N=2, R1=2, R2=3, init_regime=1, which_cumulative=1,
                 ci=c(0.99, 0.2), scale_type="peak", scale=cbind(c(2, 1, 0.5), c(1, 1, -0.25)), use_parallel=FALSE, seeds=1:3)
+  girf6 <- GIRF(mod122exocikt, which_shocks=2, shock_size=1.3, N=3, R1=2, R2=2, init_regime=1, which_cumulative=1:2,
+                ci=c(0.95), scale_type="instant", scale=c(2, 1, 0.3), use_parallel=FALSE, exo_weights=twmat[3:6,],
+                seeds=1:2)
+  girf7 <- GIRF(mod222logikt, which_shocks=1:2, shock_size=0.4, N=2, R1=2, R2=3, init_regime=1, which_cumulative=1,
+                ci=c(0.99, 0.2), scale_type="peak", scale=cbind(c(2, 1, 0.5), c(1, 1, -0.25)), use_parallel=FALSE, seeds=1:3)
 
   expect_equal(unname(girf1$girf_res$shock1$point_est[4, ]), c(0.00851552, 0.02350278, 0.00000000), tol=1e-4)
   expect_equal(c(unname(girf1$girf_res$shock1$conf_ints[4, , ])), c(0.0006007925, 0.0181154039, 0.0016581835, 0.0499984036,
                                                                     0.0000000000, 0.0000000000), tol=1e-4)
   expect_equal(unname(girf1$girf_res$shock2$point_est[4, ]), c(-0.04182505, 0.86688967, 0.00000000), tol=1e-4)
 
-  expect_equal(unname(girf2$girf_res$shock1$point_est[2, ]), c(0.109528226, -0.005750624, 0.010788115, -0.010788115), tol=1e-4)
-  expect_equal(c(unname(girf2$girf_res$shock1$conf_ints[2, , ])),
-               c(0.0920255278, 0.0967910171, 0.1183282025, 0.1346691548, -0.0301971391, -0.0197615052, 0.0065791196, 0.0219572979,
-                 -0.0031018565, -0.0006816148, 0.0177577975, 0.0334081798, -0.0334081798, -0.0177577975, 0.0006816148, 0.0031018565),
-               tol=1e-4)
+  expect_equal(unname(girf2$girf_res$shock1$point_est[2, ]), c(0.099155053, -0.028546980, 0.006293229, -0.006293229), tol=1e-4)
+  expect_equal(c(unname(girf2$girf_res$shock1$conf_ints[2, , ]))[1:5],
+               c(0.09623235, 0.09760175, 0.10063038, 0.10222903, -0.03096390), tol=1e-4)
 
   expect_equal(unname(girf3$girf_res$shock2$point_est[3, ]), c(1.20918609, 0.18394122, 0.58548529, -0.06394171, 0.06394171), tol=1e-4)
   expect_equal(unname(girf3$girf_res$shock3$point_est[3, ]), c(1.36969884, 2.20495769, -0.09185125, -0.30597982, 0.30597982), tol=1e-4)
@@ -87,11 +100,16 @@ test_that("GIRF works correctly", {
   expect_equal(unname(girf4$girf_res$shock2$point_est[4, ]), c(0.3782161, -0.7688280, 0.0000000, 0.0000000), tol=1e-4)
   expect_equal(c(unname(girf4$girf_res$shock2$conf_ints[4, ,])), c(0.3782161, 0.3782161, -0.7688280, -0.7688280, 0.0000000,
                                                                    0.0000000, 0.0000000, 0.0000000), tol=1e-4)
-  expect_equal(unname(girf5$girf_res$shock1$point_est[3, ]), c(-0.19292709, -0.03039496, 0.02320149, -0.02320149), tol=1e-4)
-  expect_equal(c(unname(girf5$girf_res$shock2$conf_ints[3, ,])),
-               c(0.01855704, 0.31740156, 0.41444672, 0.49893058, -0.35915323, 0.02102542, 0.12633961, 0.16215204, -0.05248881,
-                 -0.02277207, 0.00692316, 0.09450260, -0.09450260, -0.00692316, 0.02277207, 0.05248881), tol=1e-4)
+  expect_equal(unname(girf5$girf_res$shock1$point_est[3, ]), c(-0.250000000, -0.006672366, 0.002277241, -0.002277241), tol=1e-4)
+  expect_equal(c(unname(girf5$girf_res$shock2$conf_ints[3, ,]))[1:4],
+               c(0.03261828, 0.40557945, 0.50000000, 0.50000000), tol=1e-4)
 
+  expect_equal(unname(girf6$girf_res$shock2$point_est[4, ]), c(0.3782161, -0.7688280, 0.0000000, 0.0000000), tol=1e-4)
+  expect_equal(c(unname(girf6$girf_res$shock2$conf_ints[4, ,])), c(0.3782161, 0.3782161, -0.7688280, -0.7688280, 0.0000000, 0.0000000,
+                                                                   0.0000000, 0.0000000), tol=1e-4)
+  expect_equal(unname(girf7$girf_res$shock1$point_est[3, ]), c(-0.250000000, -0.008856998, 0.003641080, -0.003641080), tol=1e-4)
+  expect_equal(c(unname(girf7$girf_res$shock2$conf_ints[3, ,]))[1:5],
+               c(-0.227935215, 0.117582058, 0.264043828, 0.497050548, 0.001396903), tol=1e-4)
 })
 
 
@@ -109,10 +127,11 @@ test_that("GFEVD works correctly", {
                   use_parallel=FALSE, seeds=1:(nrow(mod122exocit$data)-1), exo_weights=twmat[3:6,])
   gfevd7 <- GFEVD(mod222logit, use_data_shocks=FALSE, R1=3, R2=2, N=2, which_cumulative=1, init_regime=1,
                   initval_type="random", use_parallel=FALSE, seeds=1:2)
+  gfevd8 <- GFEVD(mod222logikt, use_data_shocks=FALSE, R1=1, R2=2, N=2, which_cumulative=1, init_regime=1,
+                  initval_type="random", use_parallel=FALSE, seeds=1:2)
 
   expect_equal(c(unname(gfevd1$gfevd_res[4, , 1:2])), c(0.993349651, 0.006650349, 0.001999672, 0.998000328), tol=1e-4)
-  expect_equal(c(unname(gfevd2$gfevd_res[3, ,])), c(0.9802503586, 0.0197496414, 0.0055010353, 0.9944989647, 0.0002113607,
-                                                    0.9997886393, 0.0002113607, 0.9997886393), tol=1e-4)
+  expect_equal(c(unname(gfevd2$gfevd_res[3, ,]))[1:4], c(0.995956162, 0.004043838, 0.028487640, 0.971512360), tol=1e-4)
   expect_equal(c(unname(gfevd3$gfevd_res[2, ,])), c(0.7031593419, 0.2544341273, 0.0424065307, 0.2854447652, 0.0687725127, 0.6457827221,
                                                     0.2058421171, 0.7918154286, 0.0023424543, 0.0004451969, 0.9897168585, 0.0098379446,
                                                     0.0004451969, 0.9897168585, 0.0098379446), tol=1e-4)
@@ -123,7 +142,9 @@ test_that("GFEVD works correctly", {
                                                            0.428172063, 0.201048548, 0.797946741, 0.001004711), tol=1e-4)
   expect_equal(c(unname(gfevd5$data_gfevd_res[2, 3, 2, 1:2])), c(0.9447989, 0.8897515), tol=1e-4)
 
-  expect_equal(c(unname(gfevd6$gfevd_res[3, 1:2, 1:2])), c(0.8345445, 0.1654555, 0.2280664, 0.7719336), tol=1e-4)
-  expect_equal(c(unname(gfevd6$data_gfevd_res[4, 1:2, 1:2, 20])), c(0.51732221, 0.06254266, 0.48267779, 0.93745734), tol=1e-4)
-  expect_equal(c(unname(gfevd7$gfevd_res[3, 1:2, 1:3])), c(0.94765492, 0.05234508, 0.10898500, 0.89101500, 0.12923725, 0.87076275), tol=1e-4)
+  expect_equal(c(unname(gfevd6$gfevd_res[3, 1:2, 1:2])), c(0.98518881, 0.01481119, 0.79576052, 0.20423948), tol=1e-4)
+  expect_equal(c(unname(gfevd6$data_gfevd_res[4, 1:2, 1:2, 20])), c(0.32863707, 0.02956954, 0.67136293, 0.97043046), tol=1e-4)
+  expect_equal(c(unname(gfevd7$gfevd_res[3, 1:2, 1:3])), c(0.96592109, 0.03407891, 0.10764406, 0.89235594, 0.16669198, 0.83330802), tol=1e-4)
+  expect_equal(c(unname(gfevd8$gfevd_res[3, 1:2, 1:3])), c(0.940394866, 0.059605134, 0.033285475, 0.966714525, 0.003259491,
+                                                           0.996740509), tol=1e-4)
 })

@@ -159,7 +159,7 @@ get_Sigmas <- function(p, M, d, all_A, all_boldA, all_Omegas) {
 #'
 #' @inheritParams loglikelihood
 #' @inheritParams stab_conds_satisfied
-#' @return Returns a \eqn{(dxM)} matrix containing regime mean \eqn{\mu_{m}} in the m:th column, \eqn{m=1,..,M}.
+#' @return Returns a \eqn{(d\times M)} matrix containing regime mean \eqn{\mu_{m}} in the m:th column, \eqn{m=1,..,M}.
 #' @section Warning:
 #'  No argument checks!
 #' @inherit stab_conds_satisfied references
@@ -167,7 +167,8 @@ get_Sigmas <- function(p, M, d, all_A, all_boldA, all_Omegas) {
 
 get_regime_means <- function(p, M, d, params,
                              weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
-                             weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student"), parametrization=c("intercept", "mean"),
+                             weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
+                             parametrization=c("intercept", "mean"),
                              identification=c("reduced_form", "recursive", "heteroskedasticity", "non-Gaussianity"),
                              AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL, B_constraints=NULL) {
   weight_function <- match.arg(weight_function)
@@ -204,7 +205,7 @@ get_regime_means <- function(p, M, d, params,
 #'
 #' @inheritParams loglikelihood
 #' @inheritParams reform_constrained_pars
-#' @return Returns an \eqn{(d x d x p+1 x M)} array containing the first p regimewise autocovariance matrices.
+#' @return Returns an \eqn{(d \times d \times p+1 \times M)} array containing the first p regimewise autocovariance matrices.
 #'   The subset \code{[, , j, m]} contains the j-1:th lag autocovariance matrix of the m:th regime.
 #' @references
 #'   \itemize{
@@ -215,7 +216,7 @@ get_regime_means <- function(p, M, d, params,
 
 get_regime_autocovs <- function(p, M, d, params,
                                 weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
-                                weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student"),
+                                weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
                                 identification=c("reduced_form", "recursive", "heteroskedasticity", "non-Gaussianity"),
                                 AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL, B_constraints=NULL) {
   # Match args
@@ -235,7 +236,7 @@ get_regime_autocovs <- function(p, M, d, params,
 
   all_A <- pick_allA(p=p, M=M, d=d, params=params) # [d, d, p, M]
   all_Omegas <- pick_Omegas(p=p, M=M, d=d, params=params, cond_dist=cond_dist, identification=identification) # [d, d, M]
-  if(cond_dist == "ind_Student" || identification == "non-Gaussiniaty") {
+  if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t" || identification == "non-Gaussiniaty") {
     # Calculate the covariance matrices of the regimes from the impact matrices
     for(m in 1:M) {
       all_Omegas[, , m] <- tcrossprod(all_Omegas[, , m])
@@ -339,11 +340,19 @@ uncond_moments <- function(stvar) {
   mean_constraints <- stvar$model$mean_constraints
   weight_constraints <- stvar$model$weight_constraints
   B_constraints <- stvar$model$B_constraints
+
   params <- reform_constrained_pars(p=p, M=M, d=d, params=params, weight_function=weigth_function,
                                     weightfun_pars=weightfun_pars, cond_dist=cond_dist,
                                     identification=identification, AR_constraints=AR_constraints,
                                     mean_constraints=mean_constraints, weight_constraints=weight_constraints,
                                     B_constraints=B_constraints)
+
+  if(stvar$allow_unstab) { # Check that the stability condition is satisfied
+    if(!stab_conds_satisfied(p=p, M=M, d=d, params=params)) {
+      warnings("Cannot calculate unconditonal moments: the stability condition is not satisfied for all regimes.")
+      return(NULL)
+    }
+  }
 
   reg_means <- get_regime_means(p=p, M=M, d=d, params=params, weight_function=weigth_function,
                                 weightfun_pars=weightfun_pars, cond_dist=cond_dist,

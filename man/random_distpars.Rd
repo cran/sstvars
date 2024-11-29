@@ -7,15 +7,18 @@
 random_distpars(d, cond_dist)
 }
 \arguments{
-\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, or \code{"ind_Student"},
-where the latest is the Student's \eqn{t} distribution with independent components.}
+\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, \code{"ind_Student"},
+or \code{"ind_skewed_t"}, where \code{"ind_Student"} the Student's \eqn{t} distribution with independent components, and
+\code{"ind_skewed_t"} is the skewed \eqn{t} distribution with independent components (see Hansen, 1994).}
 }
 \value{
 Returns a numeric vector ...
   \describe{
     \item{If \code{cond_dist == "Gaussian"}:}{of length zero.}
     \item{If \code{cond_dist == "Student"}:}{of length one containing a df param strictly larger than two.}
-    \item{If \code{cond_dist == "ind_Student"}:}{of length d containing a df params strictly larger than two.}
+    \item{If \code{cond_dist == "ind_Student"}:}{of length d containing df params strictly larger than two.}
+    \item{If \code{cond_dist == "ind_skewed_t"}:}{of length 2d containing df params strictly larger than two in the first d
+          elements and skewness params strictly between -1 and 1 in the rest d elements.}
   }
 }
 \description{

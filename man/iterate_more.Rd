@@ -4,14 +4,41 @@
 \alias{iterate_more}
 \title{Maximum likelihood estimation of a reduced form or structural STVAR model based on preliminary estimates}
 \usage{
-iterate_more(stvar, maxit = 100, calc_std_errors = TRUE)
+iterate_more(
+  stvar,
+  maxit = 100,
+  h = 0.001,
+  penalized,
+  penalty_params,
+  allow_unstab,
+  calc_std_errors = TRUE,
+  print_trace = TRUE
+)
 }
 \arguments{
 \item{stvar}{an object of class \code{'stvar'}, created by, e.g., \code{fitSTVAR} or \code{fitSSTVAR}.}
 
 \item{maxit}{the maximum number of iterations in the variable metric algorithm.}
 
-\item{calc_std_errors}{should approximate standard errors be calculated?}
+\item{h}{the step size used in the central difference approximation of the gradient of the log-likelihood function, so
+\code{h} should be a small positive real number.}
+
+\item{penalized}{should penalized log-likelihood function be used that penalizes the log-likelihood function when
+the parameter values are close the boundary of the stability region or outside it? If \code{TRUE}, estimates
+that do not satisfy the stability condition are allowed (except when \code{weight_function="relative_dens"}).
+The default is \code{TRUE} for three-phase estimation and \code{FALSE} for two-phase estimation.}
+
+\item{penalty_params}{a numeric vector with two positive elements specifying the penalization parameters:
+the first element determined how far from the boundary of the stability region the penalization starts
+(a number between zero and one, smaller number starts penalization closer to the boundary) and the second element
+is a tuning parameter for the penalization (a positive real number, a higher value penalizes non-stability more).}
+
+\item{allow_unstab}{If \code{TRUE}, estimates not satisfying the stability condition are allowed. Always \code{FALSE} if
+\code{weight_function="relative_dens"}.}
+
+\item{calc_std_errors}{Calculate approximate standard errors (based on standard asymptotics)?}
+
+\item{print_trace}{should the trace of the optimization algorithm be printed?}
 }
 \value{
 Returns an S3 object of class \code{'stvar'} defining a smooth transition VAR model. The returned list
@@ -34,6 +61,9 @@ Returns an S3 object of class \code{'stvar'} defining a smooth transition VAR mo
    \item{all_logliks}{The log-likelihood of the estimates from all estimation rounds, if applicable.}
    \item{which_converged}{Indicators of which estimation rounds converged, if applicable.}
    \item{which_round}{Indicators of which round of optimization each estimate belongs to, if applicable.}
+   \item{LS_estimates}{The least squares estimates of the parameters in the form
+     \eqn{(\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\alpha} (intercepts replaced by unconditional means
+     if mean parametrization is used), if applicable.}
 }
 \description{
 \code{iterate_more} uses a variable metric algorithm to estimate a reduced form or structural STVAR model
@@ -61,7 +91,7 @@ get_foc(fit12) # Not close to zero!
 fit12 <- iterate_more(fit12)
 
 # The gradient of the log-likelihood function after iterating more:
-get_foc(fit12) # Close to zero!
+get_foc(fit12) # Close (enough) to zero!
 }
 }
 \references{
@@ -70,6 +100,7 @@ get_foc(fit12) # Close to zero!
      \emph{Journal of Econometrics}, \strong{84}:1, 1-36.
    \item Hubrich K., Teräsvirta. T. 2013. Thresholds and Smooth Transitions in Vector Autoregressive Models.
      \emph{CREATES Research Paper 2013-18, Aarhus University.}
+   \item Koivisto T., Luoto J., Virolainen S. 2025. Unpublished working paper.
    \item Lanne M., Virolainen S. 2024. A Gaussian smooth transition vector autoregressive model:
       An application to the macroeconomic effects of severe weather shocks. Unpublished working
       paper, available as arXiv:2403.14216.

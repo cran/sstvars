@@ -132,14 +132,14 @@
 
 GIRF <- function(stvar, which_shocks, shock_size=1, N=30, R1=250, R2=250, init_regime=1, init_values=NULL,
                  which_cumulative=numeric(0), scale=NULL, scale_type=c("instant", "peak"), scale_horizon=N,
-                 ci=c(0.95, 0.80), ncores=2, burn_in=1000, exo_weights=NULL, seeds=NULL,
-                 use_parallel=TRUE) {
+                 ci=c(0.95, 0.80), ncores=2, burn_in=1000, exo_weights=NULL, seeds=NULL, use_parallel=TRUE) {
   check_stvar(stvar)
   scale_type <- match.arg(scale_type)
-  if(stvar$model$identification == "reduced_form" && stvar$model$cond_dist != "ind_Student") {
+  cond_dist <- stvar$model$cond_dist
+  if(stvar$model$identification == "reduced_form" && cond_dist != "ind_Student" && cond_dist != "ind_skewed_t") {
     warning(paste("Reduced form model supplied, so using recursive identification"))
     stvar$model$identification <- "recursive"
-  } else if(stvar$model$identification == "reduced_form" && stvar$model$cond_dist == "ind_Student") {
+  } else if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t") {
     stvar$model$identification <- "non-Gaussianity" # Readily identified by non-Gaussianity
   }
 
@@ -232,7 +232,7 @@ GIRF <- function(stvar, which_shocks, shock_size=1, N=30, R1=250, R2=250, init_r
     ### Calculate the GIRFs ###
     cl <- parallel::makeCluster(ncores)
     on.exit(try(parallel::stopCluster(cl), silent=TRUE)) # Close the cluster on exit, if not already closed.
-    parallel::clusterExport(cl, ls(environment(GIRF)), envir = environment(GIRF)) # assign all variables from package:sstvars
+    parallel::clusterExport(cl, ls(environment(GIRF)), envir=environment(GIRF)) # assign all variables from package:sstvars
     parallel::clusterEvalQ(cl, c(library(pbapply), library(Rcpp), library(RcppArmadillo), library(sstvars)))
 
     for(i1 in 1:length(which_shocks)) {
@@ -431,10 +431,11 @@ GFEVD <- function(stvar, shock_size=1, N=30, initval_type=c("data", "random", "f
                   burn_in=1000, exo_weights=NULL, seeds=NULL, use_parallel=TRUE) {
   check_stvar(stvar)
   initval_type <- match.arg(initval_type)
-  if(stvar$model$identification == "reduced_form" && stvar$model$cond_dist != "ind_Student") {
+  cond_dist <- stvar$model$cond_dist
+  if(stvar$model$identification == "reduced_form" && cond_dist != "ind_Student" && cond_dist != "ind_skewed_t") {
     warning(paste("Reduced form model supplied, so using recursive identification"))
     stvar$model$identification <- "recursive"
-  } else if(stvar$model$identification == "reduced_form" && stvar$model$cond_dist == "ind_Student") {
+  } else if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t") {
     stvar$model$identification <- "non-Gaussianity" # Readily identified by non-Gaussianity
   }
   p <- stvar$model$p
@@ -481,14 +482,15 @@ GFEVD <- function(stvar, shock_size=1, N=30, initval_type=c("data", "random", "f
   # Calculate the shock sizes for each history in the data
   if(use_data_shocks) {
     # Recover the structural shocks for each initial value in all_initvals:
-    if(stvar$model$identification == "reduced_form" && stvar$model$cond_dist != "ind_Student") {
+    if(stvar$model$identification == "reduced_form" && cond_dist != "ind_Student" && cond_dist != "ind_skewed_t") {
       # Recover the structural shocks from the reduced form shocks using recursive identification:
       data_shocks <- get_residuals(data=stvar$data, p=p, M=M, params=stvar$params, weight_function=stvar$model$weight_function,
                                    weightfun_pars=stvar$model$weightfun_pars, cond_dist=stvar$model$cond_dist,
                                    parametrization=stvar$model$parametrization, identification="recursive",
                                    B_constraints=stvar$model$B_constraints, mean_constraints=stvar$model$mean_constraints,
                                    AR_constraints=stvar$model$AR_constraints, weight_constraints=stvar$model$weight_constraints,
-                                   structural_shocks=TRUE)
+                                   penalized=stvar$penalized, penalty_params=stvar$penalty_params,
+                                   allow_unstab=stvar$allow_unstab, structural_shocks=TRUE)
     } else {
       data_shocks <- stvar$structural_shocks
     }

@@ -85,12 +85,12 @@ parameters \eqn{\phi_{m,0}} or regime means \eqn{\mu_{m}}, m=1,...,M.}
     currently available only with the conditional distribution \code{"ind_Student"}.}
 }}
 
-\item{AR_constraints}{a size \eqn{(Mpd^2 x q)} constraint matrix \eqn{C} specifying linear constraints
+\item{AR_constraints}{a size \eqn{(Mpd^2 \times q)} constraint matrix \eqn{C} specifying linear constraints
 to the autoregressive parameters. The constraints are of the form
-\eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 x 1),\ m=1,...,M},
-contains the coefficient matrices and \eqn{\psi} \eqn{(q x 1)} contains the related parameters.
+\eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 \times 1),\ m=1,...,M},
+contains the coefficient matrices and \eqn{\psi} \eqn{(q \times 1)} contains the related parameters.
 For example, to restrict the AR-parameters to be the identical across the regimes, set \eqn{C =}
-[\code{I:...:I}]' \eqn{(Mpd^2 x pd^2)} where \code{I = diag(p*d^2)}.}
+[\code{I:...:I}]' \eqn{(Mpd^2 \times pd^2)} where \code{I = diag(p*d^2)}.}
 
 \item{mean_constraints}{Restrict the mean parameters of some regimes to be identical? Provide a list of numeric vectors
 such that each numeric vector contains the regimes that should share the common mean parameters. For instance, if
@@ -103,8 +103,8 @@ that is, when \code{parametrization="mean"}.}
 specifying linear constraints on the transition weight parameters \eqn{\alpha}.
 The constraints are of the form \eqn{\alpha = R\xi + r}, where \eqn{R} is a known \eqn{(a\times l)}
 constraint matrix of full column rank (\eqn{a} is the dimension of \eqn{\alpha}), \eqn{r} is a known \eqn{(a\times 1)} constant,
-and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} in order to constrain the
-the weight parameter to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).}
+and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} to constrain the
+weight parameters to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).}
 
 \item{B_constraints}{a \eqn{(d \times d)} matrix with its entries imposing constraints on the impact matrix \eqn{B_t}:
 \code{NA} indicating that the element is unconstrained, a positive value indicating strict positive sign constraint,

@@ -135,7 +135,7 @@ linear_IRF <- function(stvar, N=30, regime=1, which_cumulative=numeric(0), scale
   stopifnot(regime <= stvar$model$M)
   stopifnot(!is.null(stvar$data))
   if(!is.null(seed)) stopifnot(is.numeric(seed) && length(seed) == 1)
-  if(stvar$model$identification == "reduced_form" && stvar$model$cond_dist == "ind_Student") {
+  if(stvar$model$cond_dist == "ind_Student" || stvar$model$cond_dist == "ind_skewed_t") {
     stvar$model$identification <- "non-Gaussianity" # Readily identified by non-Gaussianity
   }
   data <- stvar$data
@@ -153,6 +153,10 @@ linear_IRF <- function(stvar, N=30, regime=1, which_cumulative=numeric(0), scale
   mean_constraints <- stvar$model$mean_constraints
   weight_constraints <- stvar$model$weight_constraints
   B_constraints <- stvar$model$B_constraints
+  penalized <- stvar$penalized
+  penalty_params <- stvar$penalty_params
+  allow_unstab <- stvar$allow_unstab
+
   stopifnot(regime <= M)
   params <- reform_constrained_pars(p=p, M=M, d=d, params=params,
                                     weight_function=weight_function, weightfun_pars=weightfun_pars,
@@ -166,12 +170,6 @@ linear_IRF <- function(stvar, N=30, regime=1, which_cumulative=numeric(0), scale
                                      AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL,
                                      B_constraints=NULL, change_to="intercept")
   }
-  all_mu <- get_regime_means(p=p, M=M, d=d, params=params,
-                             weight_function=weight_function, weightfun_pars=weightfun_pars,
-                             cond_dist=cond_dist, parametrization="intercept",
-                             identification=identification,
-                             AR_constraints=NULL, mean_constraints=NULL,
-                             weight_constraints=NULL, B_constraints=NULL)
   all_phi0 <- pick_phi0(M=M, d=d, params=params)
   all_A <- pick_allA(p=p, M=M, d=d, params=params)
   all_Omega <- pick_Omegas(p=p, M=M, d=d, params=params, cond_dist=cond_dist,
@@ -187,7 +185,7 @@ linear_IRF <- function(stvar, N=30, regime=1, which_cumulative=numeric(0), scale
   ci_possible <- (means_identical && AR_mats_identical) || M == 1
 
   # Check the argument scale and which_cumulative
-  if(identification == "heteroskedasticity" || identification == "non-Gaussianity") { # ind_Students mods ident set to non-Gaus
+  if(identification == "heteroskedasticity" || identification == "non-Gaussianity") {
     if(is.null(B_constraints)) {
       B_constrs <- matrix(NA, nrow=d, ncol=d)
     } else {
@@ -235,7 +233,7 @@ linear_IRF <- function(stvar, N=30, regime=1, which_cumulative=numeric(0), scale
     } else { # regime == 1
       B_matrix <- W
     }
-  } else if(identification == "non-Gaussianity") { # ind_Student mods ident set to non-Gaus
+  } else if(identification == "non-Gaussianity") {
     if(is.null(ci) || !ci_possible) {
       B_matrix <- all_Omega[, , regime] # impact matrix readily parametrized
     } else {
@@ -412,6 +410,7 @@ linear_IRF <- function(stvar, N=30, regime=1, which_cumulative=numeric(0), scale
                                identification=identification, AR_constraints=AR_constraints,
                                mean_constraints=mean_constraints, weight_constraints=new_weight_constraints,
                                B_constraints=new_B_constraints, other_constraints=other_constraints,
+                               penalized=penalized, penalty_params=penalty_params, allow_unstab=allow_unstab,
                                seed=seed)
 
       # Get the IRF from the bootstrap replication

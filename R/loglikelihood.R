@@ -16,14 +16,16 @@
 #'     \item{\describe{
 #'       \item{if \code{cond_dist="Gaussian"} or \code{"Student"}:}{\eqn{\sigma = (vech(\Omega_1),...,vech(\Omega_M))}
 #'         \eqn{(Md(d + 1)/2 \times 1)}.}
-#'       \item{if \code{cond_dist="ind_Student"}:}{\eqn{\sigma = (vec(B_1),...,vec(B_M)} \eqn{(Md^2 \times 1)}.}
+#'       \item{if \code{cond_dist="ind_Student"} or \code{"ind_skewed_t"}:}{\eqn{\sigma = (vec(B_1),...,vec(B_M)} \eqn{(Md^2 \times 1)}.}
 #'       }
 #'     }
 #'     \item{\eqn{\alpha = } the \eqn{(a\times 1)} vector containing the transition weight parameters (see below).}
 #'     \item{\describe{
 #'       \item{if \code{cond_dist = "Gaussian")}:}{Omit \eqn{\nu} from the parameter vector.}
 #'       \item{if \code{cond_dist="Student"}:}{\eqn{\nu > 2} is the single degrees of freedom parameter.}
-#'       \item{if \code{cond_dist="ind_Student"}:}{\eqn{\nu = (\nu_1,...,\nu_M)} \eqn{(M \times 1)}, \eqn{nu_m > 2}.}
+#'       \item{if \code{cond_dist="ind_Student"}:}{\eqn{\nu = (\nu_1,...,\nu_d)} \eqn{(d \times 1)}, \eqn{\nu_i > 2}.}
+#'       \item{if \code{cond_dist="ind_skewed_t"}:}{\eqn{\nu = (\nu_1,...,\nu_d,\lambda_1,...,\lambda_d)} \eqn{(2d \times 1)},
+#'        \eqn{\nu_i > 2} and \eqn{\lambda_i \in (0, 1)}.}
 #'       }
 #'     }
 #'   }
@@ -43,7 +45,7 @@
 #'     \item{\code{weight_function="exponential"}:}{\eqn{\alpha = (c,\gamma)}
 #'           \eqn{(2 \times 1)}, where \eqn{c\in\mathbb{R}} is the location parameter and \eqn{\gamma >0} is the scale parameter.}
 #'     \item{\code{weight_function="threshold"}:}{\eqn{\alpha = (r_1,...,r_{M-1})}
-#'           \eqn{(M-1 \times 1)}, where \eqn{r_1,...,r_{M-1}} are the threshold values.}
+#'           \eqn{(M-1 \times 1)}, where \eqn{r_1,...,r_{M-1}} are the thresholds.}
 #'     \item{\code{weight_function="exogenous"}:}{Omit \eqn{\alpha} from the parameter vector.}
 #'     \item{AR_constraints:}{Replace \eqn{\varphi_1,...,\varphi_M} with \eqn{\psi} as described in the argument \code{AR_constraints}.}
 #'     \item{mean_constraints:}{Replace \eqn{\phi_{1,0},...,\phi_{M,0}} with \eqn{(\mu_{1},...,\mu_{g})} where
@@ -55,9 +57,10 @@
 #'           \eqn{W} \eqn{(d\times d)} and \eqn{\lambda_m} \eqn{(d\times 1)}, \eqn{m=2,...,M}, satisfy
 #'           \eqn{\Omega_1=WW'} and \eqn{\Omega_m=W\Lambda_mW'}, \eqn{\Lambda_m=diag(\lambda_{m1},...,\lambda_{md})},
 #'           \eqn{\lambda_{mi}>0}, \eqn{m=2,...,M}, \eqn{i=1,...,d}.}
-#'     \item{B_constraints (only for structural models identified by heteroskedasticity):}{Replace \eqn{vec(W)} with \eqn{\tilde{vec}(W)}
-#'           that stacks the columns of the matrix \eqn{W} in to vector
-#'           so that the elements that are constrained to zero are not included.}
+#'     \item{B_constraints:}{For models identified by heteroskedasticity, replace \eqn{vec(W)} with \eqn{\tilde{vec}(W)}
+#'           that stacks the columns of the matrix \eqn{W} in to vector so that the elements that are constrained to zero
+#'           are not included. For models identified by non-Gaussianity, replace \eqn{vec(B_1),...,vec(B_M)} with
+#'           similarly with vectorized versions \eqn{B_m} so that the elements that are constrained to zero are not included.}
 #'   }
 #'   Above, \eqn{\phi_{m,0}} is the intercept parameter, \eqn{A_{m,i}} denotes the \eqn{i}th coefficient matrix of the \eqn{m}th
 #'   regime, \eqn{\Omega_{m}} denotes the positive definite error term covariance matrix of the \eqn{m}th regime, and \eqn{B_m}
@@ -106,8 +109,9 @@
 #'     transition weights as \code{[t, m]} for time \eqn{t} and regime \eqn{m}. Each row needs to sum to one and only weakly positive
 #'     values are allowed.}
 #' }
-#' @param cond_dist specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, or \code{"ind_Student"},
-#'   where the latest is the Student's \eqn{t} distribution with independent components.
+#' @param cond_dist specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, \code{"ind_Student"},
+#'   or \code{"ind_skewed_t"}, where \code{"ind_Student"} the Student's \eqn{t} distribution with independent components, and
+#'   \code{"ind_skewed_t"} is the skewed \eqn{t} distribution with independent components (see Hansen, 1994).
 #' @param parametrization \code{"intercept"} or \code{"mean"} determining whether the model is parametrized with intercept
 #'   parameters \eqn{\phi_{m,0}} or regime means \eqn{\mu_{m}}, m=1,...,M.
 #' @param identification is it reduced form model or an identified structural model; if the latter, how is it identified
@@ -120,12 +124,12 @@
 #'     \item{\code{"non-Gaussianity"}:}{Identification by non-Gaussianity; requires mutually independent non-Gaussian shocks, thus,
 #'       currently available only with the conditional distribution \code{"ind_Student"}.}
 #'   }
-#' @param AR_constraints a size \eqn{(Mpd^2 x q)} constraint matrix \eqn{C} specifying linear constraints
+#' @param AR_constraints a size \eqn{(Mpd^2 \times q)} constraint matrix \eqn{C} specifying linear constraints
 #'   to the autoregressive parameters. The constraints are of the form
-#'   \eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 x 1),\ m=1,...,M},
-#'   contains the coefficient matrices and \eqn{\psi} \eqn{(q x 1)} contains the related parameters.
+#'   \eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 \times 1),\ m=1,...,M},
+#'   contains the coefficient matrices and \eqn{\psi} \eqn{(q \times 1)} contains the related parameters.
 #'   For example, to restrict the AR-parameters to be the identical across the regimes, set \eqn{C =}
-#'   [\code{I:...:I}]' \eqn{(Mpd^2 x pd^2)} where \code{I = diag(p*d^2)}.
+#'   [\code{I:...:I}]' \eqn{(Mpd^2 \times pd^2)} where \code{I = diag(p*d^2)}.
 #' @param mean_constraints Restrict the mean parameters of some regimes to be identical? Provide a list of numeric vectors
 #'   such that each numeric vector contains the regimes that should share the common mean parameters. For instance, if
 #'   \code{M=3}, the argument \code{list(1, 2:3)} restricts the mean parameters of the second and third regime to be
@@ -136,8 +140,8 @@
 #'   specifying linear constraints on the transition weight parameters \eqn{\alpha}.
 #'   The constraints are of the form \eqn{\alpha = R\xi + r}, where \eqn{R} is a known \eqn{(a\times l)}
 #'   constraint matrix of full column rank (\eqn{a} is the dimension of \eqn{\alpha}), \eqn{r} is a known \eqn{(a\times 1)} constant,
-#'   and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} in order to constrain the
-#'   the weight parameter to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).
+#'   and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} to constrain the
+#'   weight parameters to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).
 #' @param B_constraints a \eqn{(d \times d)} matrix with its entries imposing constraints on the impact matrix \eqn{B_t}:
 #'   \code{NA} indicating that the element is unconstrained, a positive value indicating strict positive sign constraint,
 #'   a negative value indicating strict negative sign constraint, and zero indicating that the element is constrained to zero.
@@ -156,6 +160,17 @@
 #'   See the section "Value" for all the options.
 #' @param check_params should it be checked that the parameter vector satisfies the model assumptions? Can be skipped to save
 #'   computation time if it does for sure.
+#' @param penalized Perform penalized LS estimation that minimizes penalized RSS in which estimates close to breaking or not satisfying the
+#'   usual stability condition are penalized? If \code{TRUE}, the tuning parameter is set by the argument \code{penalty_params[2]},
+#'   and the penalization starts when the eigenvalues of the companion form AR matrix are larger than \code{1 - penalty_params[1]}.
+#' @param penalty_params a numeric vector with two positive elements specifying the penalization parameters:
+#'   the first element determined how far from the boundary of the stability region the penalization starts
+#'   (a number between zero and one, smaller number starts penalization closer to the boundary) and the second element
+#'   is a tuning parameter for the penalization (a positive real number, a higher value penalizes non-stability more).
+#' @param allow_unstab If \code{TRUE}, estimates not satisfying the stability condition are allowed. Always \code{FALSE} if
+#'  \code{weight_function="relative_dens"}.
+#' @param bound_by_weights should \code{minval} be returned if the transition weights do not allocate enough weights to a regime
+#'   compared to the number of observations in the regime? See the source code for details.
 #' @param indt_R If \code{TRUE} calculates the independent Student's t density in R instead of C++ without any approximations
 #'   employed for speed-up.
 #' @param alt_par If \code{TRUE} assumes that models identified by non-Gaussianiaty (or \code{cond_dist="Student"}) are
@@ -193,8 +208,10 @@
 #'  \itemize{
 #'    \item Anderson H., Vahid F. 1998. Testing multiple equation systems for common nonlinear components.
 #'      \emph{Journal of Econometrics}, \strong{84}:1, 1-36.
+#'    \item Hansen B.E. 1994. Autoregressive Conditional Density estimation.
+#'      \emph{Journal of Econometrics}, \strong{35}:3, 705-730.
 #'    \item Kheifets I.L., Saikkonen P.J. 2020. Stationarity and ergodicity of Vector STAR models.
-#'      \emph{Econometric Reviews}, \strong{39}:4, 407-414.
+#'      \emph{International Economic Review}, \strong{35}:3, 407-414.
 #'    \item Lanne M., Virolainen S. 2024. A Gaussian smooth transition vector autoregressive model:
 #'       An application to the macroeconomic effects of severe weather shocks. Unpublished working
 #'       paper, available as arXiv:2403.14216.
@@ -212,13 +229,16 @@
 #'  }
 #' @keywords internal
 
-loglikelihood <- function(data, p, M, params, weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
-                          weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student"), parametrization=c("intercept", "mean"),
+loglikelihood <- function(data, p, M, params,
+                          weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
+                          weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
+                          parametrization=c("intercept", "mean"),
                           identification=c("reduced_form", "recursive", "heteroskedasticity", "non-Gaussianity"),
-                          AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL, B_constraints=NULL, other_constraints=NULL,
+                          AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL, B_constraints=NULL,
+                          other_constraints=NULL,
                           to_return=c("loglik", "tw", "loglik_and_tw", "terms", "regime_cmeans", "total_cmeans", "total_ccovs", "B_t"),
-                          check_params=TRUE, indt_R=FALSE, alt_par=FALSE, minval=NULL,
-                          stab_tol=1e-3, posdef_tol=1e-8, distpar_tol=1e-8, weightpar_tol=1e-8) {
+                          check_params=TRUE, penalized=FALSE, penalty_params=c(0.05, 0.2), allow_unstab=FALSE, bound_by_weights=FALSE,
+                          indt_R=FALSE, alt_par=FALSE, minval=NULL, stab_tol=1e-3, posdef_tol=1e-8, distpar_tol=1e-8, weightpar_tol=1e-8) {
 
   # Match args
   weight_function <- match.arg(weight_function)
@@ -226,6 +246,10 @@ loglikelihood <- function(data, p, M, params, weight_function=c("relative_dens",
   parametrization <- match.arg(parametrization)
   identification <- match.arg(identification)
   to_return <- match.arg(to_return)
+  if(weight_function == "relative_dens") {
+    allow_unstab <- FALSE
+  }
+  stopifnot(is.numeric(penalty_params) && length(penalty_params) == 2 && all(penalty_params >= 0) && penalty_params[1] < 1)
 
   # Compute some required statistics
   epsilon <- round(log(.Machine$double.xmin) + 10) # Logarithm of the smallest value that can be handled normally
@@ -244,8 +268,7 @@ loglikelihood <- function(data, p, M, params, weight_function=c("relative_dens",
                                     weight_constraints=weight_constraints, B_constraints=B_constraints,
                                     other_constraints=other_constraints, weightfun_pars=weightfun_pars)
 
-
-  if(cond_dist == "ind_Student" || identification == "non-Gaussianity") {
+  if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t" || identification == "non-Gaussianity") {
     if(alt_par) { # Change to the parametrization with impact matrices of the regimes parametrized directly.
       params <- change_parametrization(p=p, M=M, d=d, params=params, weight_function=weight_function, weightfun_pars=weightfun_pars,
                                        cond_dist=cond_dist, identification=identification, AR_constraints=NULL, mean_constraints=NULL,
@@ -271,8 +294,8 @@ loglikelihood <- function(data, p, M, params, weight_function=c("relative_dens",
     if(!in_paramspace(p=p, M=M, d=d, params=params, weight_function=weight_function, cond_dist=cond_dist,
                       identification=identification, B_constraints=B_constraints, other_constraints=other_constraints,
                       all_boldA=all_boldA, all_Omegas=all_Omegas, weightpars=weightpars, distpars=distpars,
-                      weightfun_pars=weightfun_pars, stab_tol=stab_tol, posdef_tol=posdef_tol, distpar_tol=distpar_tol,
-                      weightpar_tol=weightpar_tol)) {
+                      weightfun_pars=weightfun_pars, allow_unstab=allow_unstab, stab_tol=stab_tol, posdef_tol=posdef_tol,
+                      distpar_tol=distpar_tol, weightpar_tol=weightpar_tol)) {
       return(minval)
     }
   }
@@ -285,7 +308,12 @@ loglikelihood <- function(data, p, M, params, weight_function=c("relative_dens",
   # Calculate unconditional regime-specific expected values (column per component) or phi0-parameters if using mean-parametrization
   Id <- diag(nrow=d)
   if(parametrization == "intercept") {
-    all_mu <- vapply(1:M, function(m) solve(Id - rowSums(all_A[, , , m, drop=FALSE], dims=2), all_phi0[,m]), numeric(d)) # sum over dims+1=3
+    if(weight_function == "relative_dens") {
+      all_mu <- vapply(1:M, function(m) solve(Id - rowSums(all_A[, , , m, drop=FALSE], dims=2),
+                                              all_phi0[,m]), numeric(d)) # sum over dims+1=3
+    } else {
+      all_mu <- NULL # unconditional means are needed only for the relative density weights
+    }
   } else {
     all_phi0 <- vapply(1:M, function(m) (Id - rowSums(all_A[, , , m, drop=FALSE], dims=2))%*%all_mu[,m], numeric(d))
   }
@@ -296,6 +324,16 @@ loglikelihood <- function(data, p, M, params, weight_function=c("relative_dens",
 
   if(to_return == "tw") {
     return(alpha_mt)
+  }
+
+  if(bound_by_weights) {
+    pars_per_reg <- ifelse(is.null(mean_constraints), d, length(mean_constraints)*d/M) + # mean/int params
+      ifelse(is.null(AR_constraints), p*d^2, ncol(AR_constraints)/M) + # AR params
+      ifelse(cond_dist %in% c("ind_Student", "ind_skewed_t"), d^2, d*(d + 1)/2) # Covmat params
+    obs_per_reg <- d*colSums(alpha_mt)
+    if(any(obs_per_reg < 1.2*pars_per_reg)) {
+      return(minval)
+    }
   }
 
   # Calculate the conditional means mu_{m,t}
@@ -316,7 +354,7 @@ loglikelihood <- function(data, p, M, params, weight_function=c("relative_dens",
     #return(matrix(rowSums(vapply(1:M, function(m) alpha_mt[,m]*mu_mt[, , m], numeric(d*T_obs))), nrow=T_obs, ncol=d, byrow=FALSE))
     return(mu_yt)
   } else if(to_return == "total_ccovs") {
-    if(cond_dist == "ind_Student" || identification == "non-Gaussianity") { # Parametrization via impact matrices
+    if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t" || identification == "non-Gaussianity") { # Parametrization via B_m
       # Cond covariance matrices of the process: B_tB_t' for each t
       all_Bt <- get_Bt_Cpp(all_Omegas=all_Omegas, alpha_mt=alpha_mt)
       all_covmats <- array(dim=c(d, d, T_obs))
@@ -330,15 +368,16 @@ loglikelihood <- function(data, p, M, params, weight_function=c("relative_dens",
     }
     return(all_covmats)
   } else if(to_return == "B_t") {
-    if(cond_dist != "ind_Student") {
-      stop("The requested output B_t is available only for models with cond_dist='ind_Student'.")
+    if(cond_dist != "ind_Student" && cond_dist != "ind_skewed_t") {
+      stop("The requested output B_t is available only for models with cond_dist='ind_Student' or 'ind_skewed_t'.")
     }
     return(get_Bt_Cpp(all_Omegas=all_Omegas, alpha_mt=alpha_mt))
   }
 
   # Calculate the conditional log-likelihood; the initial values are not used here
   if(cond_dist == "Gaussian") { # Gaussian conditional distribution
-    all_lt <- -0.5*d*log(2*pi) + Gaussian_densities_Cpp(obs=data[(p+1):nrow(data),], means=mu_yt, covmats=all_Omegas, alpha_mt=alpha_mt)
+    all_lt <- -0.5*d*log(2*pi) + Gaussian_densities_Cpp(obs=data[(p+1):nrow(data),], means=mu_yt, covmats=all_Omegas,
+                                                        alpha_mt=alpha_mt)
 
     # BELOW IS AN R IMPLEMENTATION
     #all_covmats <- array(rowSums(vapply(1:M, function(m) rep(alpha_mt[, m], each=d*d)*as.vector(all_Omegas[, , m]),
@@ -376,7 +415,7 @@ loglikelihood <- function(data, p, M, params, weight_function=c("relative_dens",
     logC1 <- sum(lgamma(0.5*(1 + distpars)) - 0.5*log(base::pi) - 0.5*log(distpars - 2) - lgamma(0.5*distpars))
     obs <- data[(p+1):nrow(data),]
     if(!indt_R) {
-      if(is.null(minval) || !is.numeric(minval)) minval <- -999999999 # Cpp function expects minval to be numerical, will cause an error if not
+      if(is.null(minval) || !is.numeric(minval)) minval <- -999999999 # Cpp fun expects minval to be numerical, will cause an error if not
       t_dens <- ind_Student_densities_Cpp(obs=obs, means=mu_yt, impact_matrices=all_Omegas, alpha_mt=alpha_mt, distpars=distpars,
                                           minval=minval, posdef_tol=posdef_tol)
 
@@ -391,23 +430,74 @@ loglikelihood <- function(data, p, M, params, weight_function=c("relative_dens",
       obs_minus_cmean <- obs - mu_yt
       all_lt <- numeric(T_obs)
       for(i1 in 1:T_obs) {
-        tdens_i1 <- numeric(d)
+        #tdens_i1 <- numeric(d)
         Bt <- apply(X=all_Omegas, MARGIN=c(1, 2), FUN=function(mat) sum(mat*alpha_mt[i1,]))
-        invBt_obs_minus_cmean <- solve(Bt, obs_minus_cmean[i1,])
-        for(i2 in 1:d) {
-          tdens_i1[i2] <- 0.5*(1 + distpars[i2])*log(1 + invBt_obs_minus_cmean[i2]^2/(distpars[i2] - 2))
-        }
+        e_t <- solve(Bt, obs_minus_cmean[i1,]) # invBt_obs_minus_cmean
+        #for(i2 in 1:d) {
+        #  tdens_i1[i2] <- 0.5*(1 + distpars[i2])*log(1 + e_t[i2]^2/(distpars[i2] - 2))
+        #}
+        tdens_i1 <- 0.5*(1 + distpars)*log(1 + e_t^2/(distpars - 2)) # Not tested
         all_lt[i1] <- -log(abs(det(Bt))) + logC1 - sum(tdens_i1)
       }
     }
+  } else if(cond_dist == "ind_skewed_t") {
+    # Invertibilty of Bt for all t is checked in ind_skewed_t_densities_Cpp, and it returns minval if not invertible for some t.
+    obs <- data[(p+1):nrow(data),]
+    all_nu <- distpars[1:d]
+    all_lambda <- distpars[(d+1):length(distpars)]
+
+    if(!indt_R) {
+      if(is.null(minval) || !is.numeric(minval)) minval <- -999999999 # Cpp fun expects minval to be numerical, will cause an error if not
+      all_lt <- ind_skewed_t_densities_Cpp(obs=obs, means=mu_yt, impact_matrices=all_Omegas, alpha_mt=alpha_mt, all_nu=all_nu,
+                                           all_lambda=all_lambda, minval=minval, posdef_tol=posdef_tol)
+
+    } else {
+      # R IMPLEMENTATION BELOW
+      logc_i <- lgamma(0.5*(1 + all_nu)) - 0.5*log(base::pi) - 0.5*log(all_nu - 2) - lgamma(0.5*all_nu) # (d x 1 )
+      a_i <- 4*all_lambda*exp(logc_i)*(all_nu - 2)/(all_nu - 1) # (d x 1)
+      logb_i <- 0.5*log(1 + 3*all_lambda^2 - a_i^2) # (d x 1)
+      b_i <- exp(logb_i) # (d x 1)
+
+      obs_minus_cmean <- obs - mu_yt
+      all_lt <- numeric(T_obs)
+      for(i1 in 1:T_obs) {
+        Bt <- apply(X=all_Omegas, MARGIN=c(1, 2), FUN=function(mat) sum(mat*alpha_mt[i1,]))
+        e_t <- solve(Bt, obs_minus_cmean[i1,]) # invBt_obs_minus_cmean
+        # dens_i1 <- numeric(d)
+        # for(i2 in 1:d) {
+        #   dens_i1[i2] <- 0.5*(1 + all_nu[i2])*log(1 + ((b_i[i2]*e_t[i2] + a_i[i2])^2)/((all_nu[i2] - 2)*(1 + ifelse(e_t[i2] < -a_i[i2]/b_i[i2],
+        #                                                                                                             -all_lambda[i2],
+        #                                                                                                             all_lambda[i2]))^2))
+        # }
+        dens_i1 <- 0.5*(1 + all_nu)*log(1 + ((b_i*e_t + a_i)^2)/((all_nu - 2)*(1 + ifelse(e_t < -a_i/b_i, -all_lambda, all_lambda))^2))
+        all_lt[i1] <- -log(abs(det(Bt))) + sum(logb_i + logc_i) - sum(dens_i1)
+      }
+    }
   }
+
+  # Calculate the penalty term for the log-likelihood
+  if(penalized) {
+    # Calculate how much the stability condition is exceeded:
+    all_stab_exceeds <- matrix(nrow=nrow(all_boldA[, , 1]), ncol=M) # Square of how much modulus of eigenvalues exceed 1 - stab_tol
+    for(m in 1:M) { # Check stability condition for each regime
+      abs_eigs <- abs(eigen(all_boldA[, , m], symmetric=FALSE, only.values=TRUE)$values)
+      all_stab_exceeds[, m] <- pmax(0, abs_eigs - (1 - penalty_params[1]))^2 # How much abs eigens exceed 1 - stab_tol, squared
+    }
+    stab_ex <- sum(all_stab_exceeds) # Sum of the squared exceeded values of stab cond
+
+    # Calculate the penalty term
+    penalty <- penalty_params[2]*T_obs*d*stab_ex
+  } else {
+    penalty <- 0
+  }
+
   if(to_return == "terms") {
     return(all_lt)
   } else if(to_return == "loglik_and_tw") {
-    return(list(loglik=sum(all_lt),
+    return(list(loglik=sum(all_lt) - penalty,
                 tw=alpha_mt))
   }
-  sum(all_lt)
+  sum(all_lt) - penalty
 }
 
 
@@ -425,19 +515,20 @@ loglikelihood <- function(data, p, M, params, weight_function=c("relative_dens",
 #' @param log_mvdvalues a \eqn{T x M} matrix containing log multivariate normal densities (can be used with
 #'   relative dens weight function only)
 #' @details Note that we index the time series as \eqn{-p+1,...,0,1,...,T}.
-#' @return Returns the mixing weights a \eqn{(T x M)} matrix, so that the t:th row is for the time point t
-#'   and m:th column is for the regime m.
+#' @return Returns the mixing weights a \eqn{(T x M)} matrix, so that the \eqn{t}th row is for the time period \eqn{t}
+#'   and \eqn{m}:th column is for the regime \eqn{m}.
 #' @inherit in_paramspace references
 #' @keywords internal
 
-get_alpha_mt <- function(data, Y2, p, M, d, weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
+get_alpha_mt <- function(data, Y2, p, M, d,
+                         weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
                          weightfun_pars=NULL, all_A, all_boldA, all_Omegas, weightpars, all_mu, epsilon, log_mvdvalues=NULL) {
   weight_function <- match.arg(weight_function)
   if(weight_function == "exogenous") {
     return(weightfun_pars)
   }
   if(is.null(log_mvdvalues)) {
-    T_obs <- ifelse(missing(data), 1, nrow(data) - p) # simulate.stvar uses without data, needs to return 1 if M=1.
+    T_obs <- ifelse(missing(data), 1, nrow(data) - p) # simulate.stvar and estim_LS use without data, needs to return 1 if M=1.
     if(M == 1) {
       return(as.matrix(rep(1, times=T_obs)))
     }
@@ -587,7 +678,7 @@ get_alpha_mt <- function(data, Y2, p, M, d, weight_function=c("relative_dens", "
     denominator <- as.vector(mvnvalues%*%weightpars)
     alpha_mt <- (mvnvalues/denominator)%*%diag(weightpars)
   } else {
-    stop("Only relative_dens and mlogit weight functions are currently implemented to get_alpha_mt")
+    stop("get_alpha_mt ended up somewhere it should never end up in")
   }
   alpha_mt
 }

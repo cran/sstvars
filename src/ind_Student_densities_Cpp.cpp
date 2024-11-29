@@ -10,9 +10,9 @@
 //'
 //' @inheritParams Student_densities_Cpp
 //' @inheritParams loglikelihood
-//' @param impact_matrices A a size \eqn{d\times d \times M} \code{arma::cube} (3D array in R), where each slice contains an
+//' @param impact_matrices a size \eqn{d\times d \times M} \code{arma::cube} (3D array in R), where each slice contains an
 //'  invertible (d x d) impact matrix of each regime.
-//' @param distpars A numeric vector of length \eqn{d}, containing the degrees of freedom parameters for each component.
+//' @param distpars a numeric vector of length \eqn{d}, containing the degrees of freedom parameters for each component.
 //' @details Returns \code{minval} if the impact matrix \eqn{B_t} is not invertible for some t up to the numerical tolerance
 //'  \code{posdef_tol}.
 //' @return A numeric vector of length \eqn{T}, where each element represents the computed density component for
@@ -55,7 +55,7 @@ arma::vec ind_Student_densities_Cpp(const arma::mat& obs,
     precalculatedLogAbsDetBt[i2] = -log(std::abs(arma::det(impact_matrices.slice(i2))));
   }
 
-  arma::vec invBt_obs_minus_cmean; // Placeholder for invBt_obs_minus_cmean
+  arma::vec e_t; // Placeholder for e_t
   double absdetBt = 0.0; // Placeholder for abs det
   int which_weight_is_one = 0; // Placeholder for which weight is one
 
@@ -66,7 +66,7 @@ arma::vec ind_Student_densities_Cpp(const arma::mat& obs,
     bool precalc_used = false;
     for(arma::uword i2 = 0; i2 < alpha_mt.n_cols; ++i2) {
       if(alpha_mt(i1, i2) == 1) {
-        invBt_obs_minus_cmean = precalculatedInvBt[i2]*(obs.row(i1) - means.row(i1)).t();
+        e_t = precalculatedInvBt[i2]*(obs.row(i1) - means.row(i1)).t();
         which_weight_is_one = i2;
         precalc_used = true;
         break; // The rest of the weights are zero
@@ -77,12 +77,12 @@ arma::vec ind_Student_densities_Cpp(const arma::mat& obs,
       for(arma::uword i2 = 0; i2 < impact_matrices.n_slices; ++i2) {
         Bt += impact_matrices.slice(i2)*alpha_mt(i1, i2);
       }
-      invBt_obs_minus_cmean = arma::solve(Bt, (obs.row(i1) - means.row(i1)).t()); // Solve for invBt_obs_minus_cmean
+      e_t = arma::solve(Bt, (obs.row(i1) - means.row(i1)).t()); // Solve for e_t
     }
 
     // Calculate the exp-part of the density
     for(int i2 = 0; i2 < d; ++i2) {
-      tdens_i1(i2) = one_plus_distpars_times_half(i2)*log(1 + std::pow(invBt_obs_minus_cmean(i2), 2)*inverse_distpars_minus_two(i2));
+      tdens_i1(i2) = one_plus_distpars_times_half(i2)*log(1 + std::pow(e_t(i2), 2)*inverse_distpars_minus_two(i2));
     }
 
     if(precalc_used) { // The determinant of Bt already calculated, always abs det pos here

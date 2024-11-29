@@ -39,7 +39,7 @@
 #' profile_logliks(mod12thres, which_pars=1:4, precision=100)
 #' @export
 
-profile_logliks <- function(stvar, which_pars, scale=0.02, nrows, ncols, precision=50,
+profile_logliks <- function(stvar, which_pars, scale=0.1, nrows, ncols, precision=50,
                             stab_tol=0.001, posdef_tol=1e-08, distpar_tol=1e-08, weightpar_tol=1e-08) {
   # Initial checks
   check_stvar(stvar)
@@ -60,13 +60,25 @@ profile_logliks <- function(stvar, which_pars, scale=0.02, nrows, ncols, precisi
   mean_constraints <- stvar$model$mean_constraints
   weight_constraints <- stvar$model$weight_constraints
   B_constraints <- stvar$model$B_constraints
+  penalized <- stvar$penalized
+  penalty_params <- stvar$penalty_params
+  allow_unstab <- stvar$allow_unstab
 
   # Checks, default arguments etc
   if(missing(which_pars)) which_pars <- 1:length(params)
-  if(!all_pos_ints(which_pars) || any(which_pars > length(params))) {
-    stop("The argument 'which_pars' should contain strictly positive integers not larger than length of the parameter vector.")
-  } else if(anyDuplicated(which_pars) != 0) {
-    stop("There are dublicates in which_pars")
+  if(!all_pos_ints(which_pars)) {
+    stop("The argument 'which_pars' should contain strictly positive integers.")
+  }
+  if(any(which_pars > length(params))) {
+    warning("Some elements in which_pars are larger than the number of parameters.")
+    which_pars <- which_pars[which_pars <= length(params)]
+    if(length(which_pars) == 0) {
+      stop("All elements in which_pars are larger than the number of parameters.")
+    }
+  }
+  if(anyDuplicated(which_pars) != 0) {
+    warning("There are dublicates in which_pars")
+    which_pars <- unique(which_pars)
   }
   npars <- length(which_pars)
   if(missing(nrows)) nrows <- max(ceiling(log2(npars) - 1), 1)
@@ -90,7 +102,7 @@ profile_logliks <- function(stvar, which_pars, scale=0.02, nrows, ncols, precisi
   } else { # AR matrices constrained
     n_ar_pars <- ncol(AR_constraints)
   }
-  if(cond_dist == "ind_Student" || identification == "non-Gaussianity") {
+  if(cond_dist %in% c("ind_Student", "ind_skewed_t") || identification == "non-Gaussianity") {
     if(is.null(B_constraints)) {
       n_zeros <- 0
     } else {
@@ -132,8 +144,10 @@ profile_logliks <- function(stvar, which_pars, scale=0.02, nrows, ncols, precisi
     n_dist_pars <- 0
   } else if(cond_dist == "Student") {
     n_dist_pars <- 1 # degrees of freedom param
-  } else { # cond_dist == "ind_Student"
+  } else if(cond_dist == "ind_Student") {
     n_dist_pars <- d # df params
+  } else { # cond_dist = "ind_skewed_t"
+    n_dist_pars <- 2*d # df and skewness params
   }
 
   B_row_ind <- NULL # Initialize
@@ -146,13 +160,15 @@ profile_logliks <- function(stvar, which_pars, scale=0.02, nrows, ncols, precisi
     logliks <- vapply(vals, function(val) { # Log-likelihoods about the estimate
       new_pars <- pars
       new_pars[i1] <- val # Change the single parameter value
-      loglikelihood(data=stvar$data, p=p, M=M, params=new_pars, weight_function=weight_function,
-                    weightfun_pars=weightfun_pars, cond_dist=cond_dist,
-                    parametrization=parametrization, identification=identification,
-                    AR_constraints=AR_constraints, mean_constraints=mean_constraints,
-                    weight_constraints=weight_constraints, B_constraints=B_constraints,
-                    to_return="loglik", check_params=TRUE, minval=NA,
-                    stab_tol=stab_tol, posdef_tol=posdef_tol, distpar_tol=distpar_tol, weightpar_tol=weightpar_tol)
+      loglikelihood(data=stvar$data, p=p, M=M, params=new_pars,
+                    weight_function=weight_function, weightfun_pars=weightfun_pars,
+                    cond_dist=cond_dist, parametrization=parametrization,
+                    identification=identification, AR_constraints=AR_constraints,
+                    mean_constraints=mean_constraints, weight_constraints=weight_constraints,
+                    B_constraints=B_constraints, to_return="loglik", check_params=TRUE,
+                    minval=NA, penalized=penalized, penalty_params=penalty_params,
+                    allow_unstab=allow_unstab, stab_tol=stab_tol, posdef_tol=posdef_tol,
+                    distpar_tol=distpar_tol, weightpar_tol=weightpar_tol)
     }, numeric(1))
 
     # Determine which type of parameter is i1 to determine the label for the individual plot
@@ -180,7 +196,7 @@ profile_logliks <- function(stvar, which_pars, scale=0.02, nrows, ncols, precisi
         main <- substitute(psi(foo), list(foo=i1 - n_mean_pars))
       }
     } else if(i1 <= n_mean_pars + n_ar_pars + n_covmat_pars) { # Covariance matrix parameter
-      if(identification %in% c("reduced_form", "recursive") && cond_dist != "ind_Student") {
+      if(identification %in% c("reduced_form", "recursive") && cond_dist != "ind_Student" && cond_dist != "ind_skewed_t") {
         cum_o <- n_mean_pars + n_ar_pars + (0:(M - 1))*d*(d + 1)/2 # The indeces after which regime changes
         m <- sum(i1 > cum_o) # Which regime
         cum_col <- cum_o[m] + c(0, cumsum(d - 0:(d - 1))) # The indeces after which column changes in vech(Omega_m)
@@ -211,7 +227,7 @@ profile_logliks <- function(stvar, which_pars, scale=0.02, nrows, ncols, precisi
             pos <- i1 - cum_lamb[m - 1] # which i=1,...,d in lambda_{mi}
             main <- substitute(lambda[foo](foo2), list(foo=m, foo2=pos))
           }
-        } else { # identification by non-Gaussianity (also cond_dist="ind_Student"): B_m params for m=1,...,M
+        } else { # identification by non-Gaussianity (also cond_dist="ind_Student" or "ind_skewed_t"): B_m params for m=1,...,M
           cum_b <- n_mean_pars + n_ar_pars + (0:(M - 1))*(d^2 - n_zeros/M) # Index after which the regime changes
           if(any(i1 == cum_b + 1)) { # Above n_zeros is the total number for all B_m, so divided by M
             B_row_ind <- rep(1, times=d) # row for each column, resets whenever a new regime starts
@@ -279,9 +295,16 @@ profile_logliks <- function(stvar, which_pars, scale=0.02, nrows, ncols, precisi
     } else { # Must be a distribution parameter
       if(cond_dist == "Student") {
         main <- substitute(nu) # Must be the only df parameter
-      } else { # cond_dist == "ind_Student"
+      } else if(cond_dist == "ind_Student") {
         which_df <- i1 - n_mean_pars - n_ar_pars - n_covmat_pars - n_weight_pars # Which df parameter (related to which time series)
         main <- substitute(nu[foo], list(foo=which_df))
+      } else if(cond_dist == "ind_skewed_t") {
+        which_distpar <- i1 - n_mean_pars - n_ar_pars - n_covmat_pars - n_weight_pars # which dist par
+        if(which_distpar <= d) {
+          main <- substitute(nu[foo], list(foo=which_distpar)) # df param
+        } else {
+          main <- substitute(lambda[foo], list(foo=which_distpar - d)) # skewness params
+        }
       }
     }
     plot(x=vals, y=logliks, type="l", main=main, xlab="", ylab="")

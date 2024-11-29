@@ -13,7 +13,7 @@ fitbsSSTVAR(
   weight_function = c("relative_dens", "logistic", "mlogit", "exponential", "threshold",
     "exogenous"),
   weightfun_pars = NULL,
-  cond_dist = c("Gaussian", "Student", "ind_Student"),
+  cond_dist = c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
   parametrization = c("intercept", "mean"),
   identification = c("reduced_form", "recursive", "heteroskedasticity",
     "non-Gaussianity"),
@@ -23,6 +23,10 @@ fitbsSSTVAR(
   B_constraints = NULL,
   other_constraints = NULL,
   robust_method = c("Nelder-Mead", "SANN", "none"),
+  penalized = FALSE,
+  penalty_params = c(0.05, 0.2),
+  allow_unstab = FALSE,
+  minval = NULL,
   maxit = 1000,
   maxit_robust = 1000,
   seed = NULL
@@ -45,14 +49,16 @@ where (see exceptions below):
   \item{\describe{
     \item{if \code{cond_dist="Gaussian"} or \code{"Student"}:}{\eqn{\sigma = (vech(\Omega_1),...,vech(\Omega_M))}
       \eqn{(Md(d + 1)/2 \times 1)}.}
-    \item{if \code{cond_dist="ind_Student"}:}{\eqn{\sigma = (vec(B_1),...,vec(B_M)} \eqn{(Md^2 \times 1)}.}
+    \item{if \code{cond_dist="ind_Student"} or \code{"ind_skewed_t"}:}{\eqn{\sigma = (vec(B_1),...,vec(B_M)} \eqn{(Md^2 \times 1)}.}
     }
   }
   \item{\eqn{\alpha = } the \eqn{(a\times 1)} vector containing the transition weight parameters (see below).}
   \item{\describe{
     \item{if \code{cond_dist = "Gaussian")}:}{Omit \eqn{\nu} from the parameter vector.}
     \item{if \code{cond_dist="Student"}:}{\eqn{\nu > 2} is the single degrees of freedom parameter.}
-    \item{if \code{cond_dist="ind_Student"}:}{\eqn{\nu = (\nu_1,...,\nu_M)} \eqn{(M \times 1)}, \eqn{nu_m > 2}.}
+    \item{if \code{cond_dist="ind_Student"}:}{\eqn{\nu = (\nu_1,...,\nu_d)} \eqn{(d \times 1)}, \eqn{\nu_i > 2}.}
+    \item{if \code{cond_dist="ind_skewed_t"}:}{\eqn{\nu = (\nu_1,...,\nu_d,\lambda_1,...,\lambda_d)} \eqn{(2d \times 1)},
+     \eqn{\nu_i > 2} and \eqn{\lambda_i \in (0, 1)}.}
     }
   }
 }
@@ -72,7 +78,7 @@ For models with...
   \item{\code{weight_function="exponential"}:}{\eqn{\alpha = (c,\gamma)}
         \eqn{(2 \times 1)}, where \eqn{c\in\mathbb{R}} is the location parameter and \eqn{\gamma >0} is the scale parameter.}
   \item{\code{weight_function="threshold"}:}{\eqn{\alpha = (r_1,...,r_{M-1})}
-        \eqn{(M-1 \times 1)}, where \eqn{r_1,...,r_{M-1}} are the threshold values.}
+        \eqn{(M-1 \times 1)}, where \eqn{r_1,...,r_{M-1}} are the thresholds.}
   \item{\code{weight_function="exogenous"}:}{Omit \eqn{\alpha} from the parameter vector.}
   \item{AR_constraints:}{Replace \eqn{\varphi_1,...,\varphi_M} with \eqn{\psi} as described in the argument \code{AR_constraints}.}
   \item{mean_constraints:}{Replace \eqn{\phi_{1,0},...,\phi_{M,0}} with \eqn{(\mu_{1},...,\mu_{g})} where
@@ -84,9 +90,10 @@ For models with...
         \eqn{W} \eqn{(d\times d)} and \eqn{\lambda_m} \eqn{(d\times 1)}, \eqn{m=2,...,M}, satisfy
         \eqn{\Omega_1=WW'} and \eqn{\Omega_m=W\Lambda_mW'}, \eqn{\Lambda_m=diag(\lambda_{m1},...,\lambda_{md})},
         \eqn{\lambda_{mi}>0}, \eqn{m=2,...,M}, \eqn{i=1,...,d}.}
-  \item{B_constraints (only for structural models identified by heteroskedasticity):}{Replace \eqn{vec(W)} with \eqn{\tilde{vec}(W)}
-        that stacks the columns of the matrix \eqn{W} in to vector
-        so that the elements that are constrained to zero are not included.}
+  \item{B_constraints:}{For models identified by heteroskedasticity, replace \eqn{vec(W)} with \eqn{\tilde{vec}(W)}
+        that stacks the columns of the matrix \eqn{W} in to vector so that the elements that are constrained to zero
+        are not included. For models identified by non-Gaussianity, replace \eqn{vec(B_1),...,vec(B_M)} with
+        similarly with vectorized versions \eqn{B_m} so that the elements that are constrained to zero are not included.}
 }
 Above, \eqn{\phi_{m,0}} is the intercept parameter, \eqn{A_{m,i}} denotes the \eqn{i}th coefficient matrix of the \eqn{m}th
 regime, \eqn{\Omega_{m}} denotes the positive definite error term covariance matrix of the \eqn{m}th regime, and \eqn{B_m}
@@ -138,8 +145,9 @@ See the vignette for more details about the weight functions.}
     values are allowed.}
 }}
 
-\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, or \code{"ind_Student"},
-where the latest is the Student's \eqn{t} distribution with independent components.}
+\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, \code{"ind_Student"},
+or \code{"ind_skewed_t"}, where \code{"ind_Student"} the Student's \eqn{t} distribution with independent components, and
+\code{"ind_skewed_t"} is the skewed \eqn{t} distribution with independent components (see Hansen, 1994).}
 
 \item{parametrization}{\code{"intercept"} or \code{"mean"} determining whether the model is parametrized with intercept
 parameters \eqn{\phi_{m,0}} or regime means \eqn{\mu_{m}}, m=1,...,M.}
@@ -155,12 +163,12 @@ parameters \eqn{\phi_{m,0}} or regime means \eqn{\mu_{m}}, m=1,...,M.}
     currently available only with the conditional distribution \code{"ind_Student"}.}
 }}
 
-\item{AR_constraints}{a size \eqn{(Mpd^2 x q)} constraint matrix \eqn{C} specifying linear constraints
+\item{AR_constraints}{a size \eqn{(Mpd^2 \times q)} constraint matrix \eqn{C} specifying linear constraints
 to the autoregressive parameters. The constraints are of the form
-\eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 x 1),\ m=1,...,M},
-contains the coefficient matrices and \eqn{\psi} \eqn{(q x 1)} contains the related parameters.
+\eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 \times 1),\ m=1,...,M},
+contains the coefficient matrices and \eqn{\psi} \eqn{(q \times 1)} contains the related parameters.
 For example, to restrict the AR-parameters to be the identical across the regimes, set \eqn{C =}
-[\code{I:...:I}]' \eqn{(Mpd^2 x pd^2)} where \code{I = diag(p*d^2)}.}
+[\code{I:...:I}]' \eqn{(Mpd^2 \times pd^2)} where \code{I = diag(p*d^2)}.}
 
 \item{mean_constraints}{Restrict the mean parameters of some regimes to be identical? Provide a list of numeric vectors
 such that each numeric vector contains the regimes that should share the common mean parameters. For instance, if
@@ -173,8 +181,8 @@ that is, when \code{parametrization="mean"}.}
 specifying linear constraints on the transition weight parameters \eqn{\alpha}.
 The constraints are of the form \eqn{\alpha = R\xi + r}, where \eqn{R} is a known \eqn{(a\times l)}
 constraint matrix of full column rank (\eqn{a} is the dimension of \eqn{\alpha}), \eqn{r} is a known \eqn{(a\times 1)} constant,
-and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} in order to constrain the
-the weight parameter to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).}
+and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} to constrain the
+weight parameters to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).}
 
 \item{B_constraints}{a \eqn{(d \times d)} matrix with its entries imposing constraints on the impact matrix \eqn{B_t}:
 \code{NA} indicating that the element is unconstrained, a positive value indicating strict positive sign constraint,
@@ -194,6 +202,21 @@ Currently only available for models with \code{identification="heteroskedasticit
 
 \item{robust_method}{Should some robust estimation method be used in the estimation before switching
 to the gradient based variable metric algorithm? See details.}
+
+\item{penalized}{Perform penalized LS estimation that minimizes penalized RSS in which estimates close to breaking or not satisfying the
+usual stability condition are penalized? If \code{TRUE}, the tuning parameter is set by the argument \code{penalty_params[2]},
+and the penalization starts when the eigenvalues of the companion form AR matrix are larger than \code{1 - penalty_params[1]}.}
+
+\item{penalty_params}{a numeric vector with two positive elements specifying the penalization parameters:
+the first element determined how far from the boundary of the stability region the penalization starts
+(a number between zero and one, smaller number starts penalization closer to the boundary) and the second element
+is a tuning parameter for the penalization (a positive real number, a higher value penalizes non-stability more).}
+
+\item{allow_unstab}{If \code{TRUE}, estimates not satisfying the stability condition are allowed. Always \code{FALSE} if
+\code{weight_function="relative_dens"}.}
+
+\item{minval}{the value that will be returned if the parameter vector does not lie in the parameter space
+(excluding the identification condition).}
 
 \item{maxit}{the maximum number of iterations in the variable metric algorithm.}
 
@@ -222,6 +245,9 @@ Returns an S3 object of class \code{'stvar'} defining a smooth transition VAR mo
    \item{all_logliks}{The log-likelihood of the estimates from all estimation rounds, if applicable.}
    \item{which_converged}{Indicators of which estimation rounds converged, if applicable.}
    \item{which_round}{Indicators of which round of optimization each estimate belongs to, if applicable.}
+   \item{LS_estimates}{The least squares estimates of the parameters in the form
+     \eqn{(\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\alpha} (intercepts replaced by unconditional means
+     if mean parametrization is used), if applicable.}
 }
 \description{
 \code{fitbsSSTVAR} uses a robust method and a variable metric algorithm to estimate
@@ -243,6 +269,9 @@ Used internally in the functions \code{linear_IRF} for estimating the model in e
    \emph{Cambridge University Press}, Cambridge.
    \item Lütkepohl H., Netšunajev A. 2017. Structural vector autoregressions with smooth transition in variances.
      \emph{Journal of Economic Dynamics & Control}, \strong{84}, 43-57.
+   \item Virolainen S. 2024. Identification by non-Gaussianity in structural threshold and
+      smooth transition vector autoregressive models. Unpublished working
+      paper, available as arXiv:2404.19707.
  }
 }
 \seealso{

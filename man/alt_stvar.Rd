@@ -39,6 +39,9 @@ Returns an S3 object of class \code{'stvar'} defining a smooth transition VAR mo
    \item{all_logliks}{The log-likelihood of the estimates from all estimation rounds, if applicable.}
    \item{which_converged}{Indicators of which estimation rounds converged, if applicable.}
    \item{which_round}{Indicators of which round of optimization each estimate belongs to, if applicable.}
+   \item{LS_estimates}{The least squares estimates of the parameters in the form
+     \eqn{(\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\alpha} (intercepts replaced by unconditional means
+     if mean parametrization is used), if applicable.}
 }
 \description{
 \code{alt_stvar} constructs a STVAR model based on results from an arbitrary estimation
@@ -52,11 +55,11 @@ It's sometimes useful to examine other estimates than the one with the highest l
 \donttest{
 ## These are long-running examples that take approximately 10 seconds to run.
 
-# Estimate a Gaussian STVAR p=1, M=2 model with exponential weight function and
+# Estimate a Gaussian STVAR p=1, M=2 model with threshold weight function and
 # the first lag of the second variable as the switching variables. Run only two
-# estimation rounds:
-fit12 <- fitSTVAR(gdpdef, p=1, M=2, weight_function="exponential", weightfun_pars=c(2, 1),
- nrounds=2, seeds=c(1, 7))
+# estimation rounds and use the two-phase estimation method:
+fit12 <- fitSTVAR(gdpdef, p=1, M=2, weight_function="threshold", weightfun_pars=c(2, 1),
+ nrounds=2, seeds=c(1, 4), estim_method="two-phase")
 fit12$loglik # Log-likelihood of the estimated model
 
 # Print the log-likelihood obtained from each estimation round:
@@ -67,8 +70,8 @@ fit12$all_logliks
 fit12_alt <- alt_stvar(fit12, which_largest=2, calc_std_errors=FALSE)
 fit12_alt$loglik # Log-likelihood of the alternative solution
 
-# Construct a model based on a specific estimation round, the second round:
-fit12_alt2 <- alt_stvar(fit12, which_round=2, calc_std_errors=FALSE)
+# Construct a model based on a specific estimation round, the first round:
+fit12_alt2 <- alt_stvar(fit12, which_round=1, calc_std_errors=FALSE)
 fit12_alt2$loglik # Log-likelihood of the alternative solution
 }
 }

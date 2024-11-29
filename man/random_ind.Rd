@@ -11,7 +11,7 @@ random_ind(
   weight_function = c("relative_dens", "logistic", "mlogit", "exponential", "threshold",
     "exogenous"),
   weightfun_pars = NULL,
-  cond_dist = c("Gaussian", "Student", "ind_Student"),
+  cond_dist = c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
   AR_constraints = NULL,
   mean_constraints = NULL,
   weight_constraints = NULL,
@@ -22,7 +22,8 @@ random_ind(
   B_scale,
   weight_scale,
   ar_scale = 1,
-  ar_scale2 = 1
+  ar_scale2 = 1,
+  fixed_params = NULL
 )
 }
 \arguments{
@@ -70,15 +71,16 @@ See the vignette for more details about the weight functions.}
     values are allowed.}
 }}
 
-\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, or \code{"ind_Student"},
-where the latest is the Student's \eqn{t} distribution with independent components.}
+\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, \code{"ind_Student"},
+or \code{"ind_skewed_t"}, where \code{"ind_Student"} the Student's \eqn{t} distribution with independent components, and
+\code{"ind_skewed_t"} is the skewed \eqn{t} distribution with independent components (see Hansen, 1994).}
 
-\item{AR_constraints}{a size \eqn{(Mpd^2 x q)} constraint matrix \eqn{C} specifying linear constraints
+\item{AR_constraints}{a size \eqn{(Mpd^2 \times q)} constraint matrix \eqn{C} specifying linear constraints
 to the autoregressive parameters. The constraints are of the form
-\eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 x 1),\ m=1,...,M},
-contains the coefficient matrices and \eqn{\psi} \eqn{(q x 1)} contains the related parameters.
+\eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 \times 1),\ m=1,...,M},
+contains the coefficient matrices and \eqn{\psi} \eqn{(q \times 1)} contains the related parameters.
 For example, to restrict the AR-parameters to be the identical across the regimes, set \eqn{C =}
-[\code{I:...:I}]' \eqn{(Mpd^2 x pd^2)} where \code{I = diag(p*d^2)}.}
+[\code{I:...:I}]' \eqn{(Mpd^2 \times pd^2)} where \code{I = diag(p*d^2)}.}
 
 \item{mean_constraints}{Restrict the mean parameters of some regimes to be identical? Provide a list of numeric vectors
 such that each numeric vector contains the regimes that should share the common mean parameters. For instance, if
@@ -91,10 +93,10 @@ that is, when \code{parametrization="mean"}.}
 specifying linear constraints on the transition weight parameters \eqn{\alpha}.
 The constraints are of the form \eqn{\alpha = R\xi + r}, where \eqn{R} is a known \eqn{(a\times l)}
 constraint matrix of full column rank (\eqn{a} is the dimension of \eqn{\alpha}), \eqn{r} is a known \eqn{(a\times 1)} constant,
-and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} in order to constrain the
-the weight parameter to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).}
+and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} to constrain the
+weight parameters to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).}
 
-\item{force_stability}{Should the algorithm proposed by Ansley and Kohn be used to generate
+\item{force_stability}{Should the algorithm proposed by Ansley and Kohn (1986) be used to generate
 AR matrices that always satisfy the stability condition? Not supported if AR constraints are
 employed.}
 
@@ -149,6 +151,25 @@ random mutations (if AR constraints are employed, in all random mutations): larg
 coefficients (in absolute value). \strong{Values larger than 1 can be used if the AR coefficients are expected to
 be very small. If set smaller than 1, be careful as it might lead to failure in the creation of parameter candidates
 that satisfy the stability condition.}}
+
+\item{fixed_params}{a vector containing fixed parameter values for intercept, autoregressive, and weight parameters
+that should be fixed in the \strong{initial population}. Should have the form:
+\eqn{(\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\alpha}, where
+\itemize{
+  \item{\eqn{(\phi_{m,0} = } the \eqn{(d \times 1)} intercept vector of the \eqn{m}th regime.}
+  \item{\eqn{\varphi_m = (vec(A_{m,1}),...,vec(A_{m,p}))} \eqn{(pd^2 \times 1)}.}
+  \item{\eqn{\alpha} vector of the weight parameters.}
+}
+For models with...
+\describe{
+  \item{AR_constraints:}{Replace \eqn{\varphi_1,...,\varphi_M} with \eqn{\psi} as described in the argument \code{AR_constraints}.}
+  \item{weight_constraints:}{If linear constraints are imposed, replace \eqn{\alpha} with \eqn{\xi} as described in the
+   argument \code{weigh_constraints}. If weight functions parameters are imposed to be fixed values, simply drop \eqn{\alpha}
+   from the parameter vector.}
+}
+Note that \code{fixed_params} should always be in the intercept parametrization (and \code{parametrization="intercept"} should always be used).
+\strong{Passing this argument from fitSTVAR in does not do anything, as it is designed to be used with the three-phase estimation
+        procedure only. Also, this argument does not do anything if the initial population is specified in the argument initpop.}}
 }
 \value{
 Returns random mean parametrized parameter vector that has the same form as the argument \code{params}

@@ -1,10 +1,10 @@
 #' @import stats
 #'
-#' @title Genetic algorithm for preliminary estimation of a STVAR models
+#' @title Genetic algorithm for preliminary estimation of reduced form STVAR models
 #'
-#' @description \code{GAfit} estimates the specified STVAR model using a genetic algorithm.
-#'   It is designed to find starting values for gradient based methods and NOT to obtain
-#'   final estimates constituting a local maximum.
+#' @description \code{GAfit} estimates the specified reduced form STVAR model using a genetic algorithm.
+#'   It is designed to find starting values for gradient based methods and NOT to obtain final estimates
+#'   constituting a local maximum.
 #'
 #' @inheritParams loglikelihood
 #' @inheritParams random_covmat
@@ -17,26 +17,28 @@
 #'   close (or partially close) to the best fitting individual (which has the least regimes with time varying
 #'   mixing weights practically at zero) so far.
 #' @param initpop a list of parameter vectors from which the initial population of the genetic algorithm
-#'   will be generated from. The parameter vectors should have the form
-#'   \eqn{\theta = (\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\sigma,\alpha,\nu)},
-#'   where
+#'   will be generated from. The parameter vectors hould have the form
+#'   \eqn{\theta = (\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\sigma,\alpha,\nu)}, where (see exceptions below):
 #'   \itemize{
 #'     \item{\eqn{\phi_{m,0} = } the \eqn{(d \times 1)} intercept (or mean) vector of the \eqn{m}th regime.}
 #'     \item{\eqn{\varphi_m = (vec(A_{m,1}),...,vec(A_{m,p}))} \eqn{(pd^2 \times 1)}.}
 #'     \item{\describe{
 #'       \item{if \code{cond_dist="Gaussian"} or \code{"Student"}:}{\eqn{\sigma = (vech(\Omega_1),...,vech(\Omega_M))}
 #'         \eqn{(Md(d + 1)/2 \times 1)}.}
-#'       \item{if \code{cond_dist="ind_Student"}:}{\eqn{\sigma = (vec(B_1),...,vec(B_M)} \eqn{(Md^2 \times 1)}.}
+#'       \item{if \code{cond_dist="ind_Student"} or \code{"ind_skewed_t"}:}{\eqn{\sigma = (vec(B_1),...,vec(B_M)} \eqn{(Md^2 \times 1)}.}
 #'       }
 #'     }
-#'     \item{\eqn{\alpha} contains the transition weights parameters (see below)}
+#'     \item{\eqn{\alpha = } the \eqn{(a\times 1)} vector containing the transition weight parameters (see below).}
 #'     \item{\describe{
 #'       \item{if \code{cond_dist = "Gaussian")}:}{Omit \eqn{\nu} from the parameter vector.}
 #'       \item{if \code{cond_dist="Student"}:}{\eqn{\nu > 2} is the single degrees of freedom parameter.}
-#'       \item{if \code{cond_dist="ind_Student"}:}{\eqn{\nu = (\nu_1,...,\nu_M)} \eqn{(M \times 1)}, \eqn{nu_m > 2}.}
+#'       \item{if \code{cond_dist="ind_Student"}:}{\eqn{\nu = (\nu_1,...,\nu_d)} \eqn{(d \times 1)}, \eqn{\nu_i > 2}.}
+#'       \item{if \code{cond_dist="ind_skewed_t"}:}{\eqn{\nu = (\nu_1,...,\nu_d,\lambda_1,...,\lambda_d)} \eqn{(2d \times 1)},
+#'        \eqn{\nu_i > 2} and \eqn{\lambda_i \in (0, 1)}.}
 #'       }
 #'     }
 #'   }
+#'   For models with...
 #'   \describe{
 #'     \item{\code{weight_function="relative_dens"}:}{\eqn{\alpha = (\alpha_1,...,\alpha_{M-1})}
 #'           \eqn{(M - 1 \times 1)}, where \eqn{\alpha_m} \eqn{(1\times 1), m=1,...,M-1} are the transition weight parameters.}
@@ -67,9 +69,7 @@
 #'   of the \eqn{m}th regime.
 #'   If \code{parametrization=="mean"}, just replace each \eqn{\phi_{m,0}} with regimewise mean \eqn{\mu_{m}}.
 #'   \eqn{vec()} is vectorization operator that stacks columns of a given matrix into a vector. \eqn{vech()} stacks columns
-#'   of a given matrix from the principal diagonal downwards (including elements on the diagonal) into a vector. \eqn{Bvec()}
-#'   is a vectorization operator that stacks the columns of a given impact matrix \eqn{B_m} into a vector so that the elements
-#'   that are constrained to zero by the argument \code{B_constraints} are excluded.
+#'   of a given matrix from the principal diagonal downwards (including elements on the diagonal) into a vector.
 #' @param mu_scale a size \eqn{(dx1)} vector defining \strong{means} of the normal distributions from which each
 #'   mean parameter \eqn{\mu_{m}} is drawn from in random mutations. Default is \code{colMeans(data)}. Note that
 #'   mean-parametrization is always used for optimization in \code{GAfit} - even when \code{parametrization=="intercept"}.
@@ -131,6 +131,9 @@
 #'   Any regime \code{m} which satisfies \code{sum(transitionWeights[,m] > red_criteria[1]) < red_criteria[2]*n_obs} will
 #'   be considered "redundant". One should be careful when adjusting this argument (set \code{c(0, 0)} to fully disable
 #'   the 'redundant regime' features from the algorithm).
+#' @param bound_by_weights should the parameter space be constrained to areas where the transition weights do allocate
+#'   enough weights to each regime compared to the number of observations in the regime? See the source code of
+#'   the function \code{loglikelihood} for details.
 #' @param pre_smart_mu_prob A number in \eqn{[0,1]} giving a probability of a "smart mutation" occuring randomly in each
 #'   iteration before the iteration given by the argument \code{smart_mu}.
 #' @param to_return should the genetic algorithm return the best fitting individual which has "positive enough" mixing
@@ -139,6 +142,26 @@
 #' @param minval a real number defining the minimum value of the log-likelihood function that will be considered.
 #'   Values smaller than this will be treated as they were \code{minval} and the corresponding individuals will
 #'   never survive. The default is \code{-(10^(ceiling(log10(n_obs)) + d) - 1)}.
+#' @param fixed_params a vector containing fixed parameter values for intercept, autoregressive, and weight parameters
+#'   that should be fixed in the \strong{initial population}. Should have the form:
+#'   \eqn{(\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\alpha}, where
+#'   \itemize{
+#'     \item{\eqn{(\phi_{m,0} = } the \eqn{(d \times 1)} intercept vector of the \eqn{m}th regime.}
+#'     \item{\eqn{\varphi_m = (vec(A_{m,1}),...,vec(A_{m,p}))} \eqn{(pd^2 \times 1)}.}
+#'     \item{\eqn{\alpha} vector of the weight parameters.}
+#'   }
+#'   For models with...
+#'   \describe{
+#'     \item{AR_constraints:}{Replace \eqn{\varphi_1,...,\varphi_M} with \eqn{\psi} as described in the argument \code{AR_constraints}.}
+#'     \item{weight_constraints:}{If linear constraints are imposed, replace \eqn{\alpha} with \eqn{\xi} as described in the
+#'      argument \code{weigh_constraints}. If weight functions parameters are imposed to be fixed values, simply drop \eqn{\alpha}
+#'      from the parameter vector.}
+#'   }
+#'   Note that \code{fixed_params} should always be in the intercept parametrization (and \code{parametrization="intercept"} should always be used).
+#'   \strong{Passing this argument from fitSTVAR in does not do anything, as it is designed to be used with the three-phase estimation
+#'           procedure only. Also, this argument does not do anything if the initial population is specified in the argument initpop.}
+#' @param fixed_params_in_smart_mu should the fixed parameters be fixed in the smart mutation phase as well? If \code{TRUE}, the fixed
+#'   parameters stay fixed throughout the whole GA estimation.
 #' @param seed a single value, interpreted as an integer, or NULL, that sets seed for the random number generator in
 #'   the beginning of the function call. If calling \code{GAfit} from \code{fitSTVAR}, use the argument \code{seeds}
 #'   instead of passing the argument \code{seed}.
@@ -164,7 +187,7 @@
 #'  using the function \code{fitSSTVAR}.
 #' @return Returns the estimated parameter vector which has the form described in \code{initpop},
 #'  \strong{with the exception} that for models with \code{cond_dist == "ind_Student"} or
-#'  \code{identification="non-Gaussianity"}, the parameter vector is parametrized with \eqn{B_1,B_2^*,...,B_M^*}
+#'  \code{"ind_skewed_t"}, the parameter vector is parametrized with \eqn{B_1,B_2^*,...,B_M^*}
 #'  instead of  \eqn{B_1,B_2,...,B_M}, where \eqn{B_m^* = B_m - B_1}. Use the function \code{change_parametrization}
 #'  to change back to the original parametrization if desired.
 #' @references
@@ -182,12 +205,13 @@
 #'  }
 
 GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
-                  weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student"), parametrization=c("intercept", "mean"),
-                  AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL,
-                  ngen=200, popsize, smart_mu=min(100, ceiling(0.5*ngen)), initpop=NULL,
-                  mu_scale, mu_scale2, omega_scale, B_scale, weight_scale,
-                  ar_scale=0.2, upper_ar_scale=1, ar_scale2=1, regime_force_scale=1, red_criteria=c(0.05, 0.01),
-                  pre_smart_mu_prob=0, to_return=c("alt_ind", "best_ind"), minval, seed=NULL) {
+                  weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
+                  parametrization=c("intercept", "mean"), AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL,
+                  ngen=200, popsize, smart_mu=min(100, ceiling(0.5*ngen)), initpop=NULL,  mu_scale, mu_scale2, omega_scale,
+                  B_scale, weight_scale, ar_scale=0.2, upper_ar_scale=1, ar_scale2=1, regime_force_scale=1,
+                  penalized, penalty_params=c(0.05, 0.5), allow_unstab, red_criteria=c(0.05, 0.01), bound_by_weights,
+                  pre_smart_mu_prob=0, to_return=c("alt_ind", "best_ind"), minval, fixed_params=NULL,
+                  fixed_params_in_smart_mu=TRUE, seed=NULL) {
 
   # Required values and preliminary checks
   set.seed(seed)
@@ -199,6 +223,12 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
   data <- check_data(data=data, p=p)
   d <- ncol(data)
   n_obs <- nrow(data)
+  T_obs <- nrow(data) - p
+  if(!is.null(fixed_params) && parametrization != "intercept") {
+    stop("fixed_params should be used with parametrization='intercept'")
+  }
+  parametrization_to_use <- ifelse(is.null(fixed_params), "mean", "intercept") # Which parametrization is used in the GA estimation
+
   weightfun_pars <- check_weightfun_pars(data=data, p=p, d=d, M=M, weight_function=weight_function,
                                          weightfun_pars=weightfun_pars, cond_dist=cond_dist)
   check_constraints(data=data, p=p, M=M, d=d, weight_function=weight_function, weightfun_pars=weightfun_pars,
@@ -208,6 +238,41 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
   npars <- n_params(p=p, M=M, d=d, weight_function=weight_function, weightfun_pars=weightfun_pars, cond_dist=cond_dist,
                     AR_constraints=AR_constraints, mean_constraints=mean_constraints, weight_constraints=weight_constraints,
                     B_constraints=NULL, identification="reduced_form")
+  if(!is.null(fixed_params)) {
+    if(weight_function == "exogenous" || M == 1) {
+      n_weight_pars <- 0
+    } else {
+      if(is.null(weight_constraints)) {
+        if(weight_function == "relative_dens" || weight_function == "threshold") {
+          n_weight_pars <- M - 1
+        } else if(weight_function == "logistic" || weight_function == "exponential") {
+          n_weight_pars <- 2
+        } else if(weight_function == "mlogit") {
+          n_weight_pars <- (M - 1)*(1 + length(weightfun_pars[[1]])*weightfun_pars[[2]])
+        }
+      } else { # Constraints on the weight parameters
+        if(all(weight_constraints[[1]] == 0)) {
+          n_weight_pars <- 0 # alpha = r, not in the parameter vector
+        } else {
+          stop("With fixed_params, only allowed weight_constraints fix the values of the weight params")
+        }
+      }
+    }
+    if(is.null(mean_constraints)) {
+      n_mean_pars <- M*d
+    } else { # Means constrained
+      stop("Mean constraints are not supported with fixed_params")
+    }
+    if(is.null(AR_constraints)) {
+      n_ar_pars <- M*p*d^2
+    } else { # AR matrices constrained
+      n_ar_pars <- ncol(AR_constraints)
+    }
+    n_fixed_pars <- n_mean_pars + n_ar_pars + n_weight_pars
+    if(length(fixed_params) != n_fixed_pars) {
+      stop("The fixed_params vector has wrong length")
+    }
+  }
 
   # Defaults and checks
   if(!all_pos_ints(c(ngen, smart_mu))) stop("Arguments ngen and smart_mu have to be positive integers")
@@ -281,6 +346,25 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
     }
   }
 
+  if(missing(penalized)) { # Penalize estimates close to the boundary of the stability region or outside it?
+    penalized <- TRUE # Penalize in three-phase estimation
+  }
+  stopifnot(is.numeric(penalty_params) && length(penalty_params) == 2 && all(penalty_params >= 0) && penalty_params[1] < 1)
+  if(missing(allow_unstab)) {
+    allow_unstab <- ifelse(weight_function == "relative_dens", FALSE, penalized) # Allow unstable estimates?
+  } else {
+    stopifnot(is.logical(allow_unstab))
+    if(allow_unstab && weight_function == "relative_dens") {
+      message("allow_unstab is not possible with relative_dens weight function")
+      allow_unstab <- FALSE
+    }
+  }
+  if(!is.null(fixed_params) && fixed_params_in_smart_mu) {
+    sm_fixed_params <- fixed_params
+  } else {
+    sm_fixed_params <- NULL
+  }
+
   stopifnot(pre_smart_mu_prob >= 0 && pre_smart_mu_prob <= 1)
   if(length(ar_scale) != 1 | ar_scale <= 0) {
     stop("ar_scale must be positive and have length one")
@@ -313,26 +397,32 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
                                             force_stability=is.null(AR_constraints),
                                             mu_scale=mu_scale, mu_scale2=mu_scale2,
                                             omega_scale=omega_scale, B_scale=B_scale, ar_scale=ar_scale,
-                                            weight_scale=weight_scale, ar_scale2=ar_scale2))
+                                            weight_scale=weight_scale, ar_scale2=ar_scale2, fixed_params=fixed_params))
 
       ind_loks <- vapply(1:popsize, function(i2) loglikelihood(data=data, p=p, M=M, params=inds[,i2],
                                                                weight_function=weight_function, weightfun_pars=weightfun_pars,
-                                                               cond_dist=cond_dist, parametrization="mean",
+                                                               cond_dist=cond_dist, parametrization=parametrization_to_use,
                                                                identification="reduced_form",
                                                                AR_constraints=AR_constraints, mean_constraints=mean_constraints,
                                                                weight_constraints=weight_constraints, B_constraints=NULL,
                                                                to_return="loglik", check_params=TRUE,
-                                                               minval=minval, alt_par=TRUE), numeric(1))
+                                                               penalized=penalized, penalty_params=penalty_params,
+                                                               allow_unstab=allow_unstab, minval=minval, alt_par=TRUE), numeric(1))
       G <- cbind(G, inds[, ind_loks > minval]) # Take good enough individuals
       if(ncol(G) >= popsize) {
         G <- G[, 1:popsize]
         break
       } else if(i1 == n_attempts) {
         if(length(G) == 0) {
-          stop("Failed to create initial population with good enough individuals. Scaling the individual series
-               so that the AR coefficients (of a VAR model) will not be very large (preferably less than one)
-               may solve the problem. If needed, another package may be used to fit linear VARs so see which
-               scalings produce relatively small AR coefficient estimates.")
+          if(!is.null(fixed_params)) {
+            stop("Failed to create initial population with good enough individuals. Check that the data is reasonable for the model
+                 and that there are enough observations.")
+          } else {
+            stop(paste("Failed to create initial population with good enough individuals. Scaling the individual series",
+                       "so that the AR coefficients (of a VAR model) will not be very large (preferably less than one)",
+                       "may solve the problem. If needed, another package may be used to fit linear VARs so see which",
+                       "scalings produce relatively small AR coefficient estimates."))
+          }
         } else {
           G <- G[, sample.int(ncol(G), size=popsize, replace=TRUE)]
         }
@@ -345,9 +435,10 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
       tryCatch(check_params(data=data, p=p, M=M, d=d, params=ind, weight_function=weight_function,
                             weightfun_pars=weightfun_pars, cond_dist=cond_dist, parametrization=parametrization,
                             identification="reduced_form", AR_constraints=AR_constraints,
-                            mean_constraints=mean_constraints, weight_constraints=weight_constraints, B_constraints=NULL),
+                            mean_constraints=mean_constraints, weight_constraints=weight_constraints,
+                            B_constraints=NULL, allow_unstab=allow_unstab),
                error=function(e) stop(paste("Problem with individual", i1, "in the initial population: "), e))
-      if(parametrization == "intercept") {
+      if(parametrization == "intercept" && parametrization_to_use == "mean") {
         ind <- change_parametrization(p=p, M=M, d=d, params=ind, weight_function=weight_function, weightfun_pars=weightfun_pars,
                                       cond_dist=cond_dist, identification="reduced_form", AR_constraints=AR_constraints,
                                       mean_constraints=mean_constraints, weight_constraints=weight_constraints,
@@ -355,8 +446,8 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
       }
       if(cond_dist == "ind_Student") { # Sort and sign change columns so that the first row of B_1 is positive and in a decreasing order.
         ind <- sort_impactmats(p=p, M=M, d=d, params=ind, weight_function=weight_function, weightfun_pars=weightfun_pars,
-                              cond_dist=cond_dist, AR_constraints=AR_constraints, mean_constraints=mean_constraints,
-                              weight_constraints=weight_constraints)
+                               cond_dist=cond_dist, AR_constraints=AR_constraints, mean_constraints=mean_constraints,
+                               weight_constraints=weight_constraints)
         ind <- change_parametrization(p=p, M=M, d=d, params=ind, weight_function=weight_function, weightfun_pars=weightfun_pars,
                                       cond_dist=cond_dist, identification="reduced_form", AR_constraints=AR_constraints,
                                       mean_constraints=mean_constraints, weight_constraints=weight_constraints,
@@ -403,10 +494,12 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
       for(i2 in 1:popsize) {
         loks_and_tw <- loglikelihood(data=data, p=p, M=M, params=G[,i2], weight_function=weight_function,
                                      weightfun_pars=weightfun_pars, cond_dist=cond_dist,
-                                     parametrization="mean", identification="reduced_form",
+                                     parametrization=parametrization_to_use, identification="reduced_form",
                                      AR_constraints=AR_constraints, mean_constraints=mean_constraints,
                                      weight_constraints=weight_constraints, B_constraints=NULL,
-                                     to_return="loglik_and_tw", check_params=TRUE, minval=minval, alt_par=TRUE)
+                                     to_return="loglik_and_tw", check_params=TRUE,
+                                     penalized=penalized, penalty_params=penalty_params,
+                                     allow_unstab=allow_unstab, minval=minval, alt_par=TRUE)
         fill_lok_and_red(i1, i2, loks_and_tw)
       }
     } else {
@@ -442,23 +535,43 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
           if(stat_mu == TRUE & mutate[i2] == 1) { # Stability condition satisfied
             loks_and_tw <- tryCatch(loglikelihood(data=data, p=p, M=M, params=G[,i2], weight_function=weight_function,
                                                   weightfun_pars=weightfun_pars, cond_dist=cond_dist,
-                                                  parametrization="mean", identification="reduced_form",
+                                                  parametrization=parametrization_to_use, identification="reduced_form",
                                                   AR_constraints=AR_constraints, mean_constraints=mean_constraints,
                                                   weight_constraints=weight_constraints, B_constraints=NULL,
-                                                  to_return="loglik_and_tw", check_params=FALSE, minval=minval, alt_par=TRUE),
+                                                  to_return="loglik_and_tw", check_params=FALSE,
+                                                  penalized=penalized, penalty_params=penalty_params,
+                                                  allow_unstab=allow_unstab, minval=minval, alt_par=TRUE),
                                     error=function(e) minval)
           } else {
             loks_and_tw <- tryCatch(loglikelihood(data=data, p=p, M=M, params=G[,i2], weight_function=weight_function,
                                                   weightfun_pars=weightfun_pars, cond_dist=cond_dist,
-                                                  parametrization="mean", identification="reduced_form",
+                                                  parametrization=parametrization_to_use, identification="reduced_form",
                                                   AR_constraints=AR_constraints, mean_constraints=mean_constraints,
                                                   weight_constraints=weight_constraints, B_constraints=NULL,
-                                                  to_return="loglik_and_tw", check_params=TRUE, minval=minval, alt_par=TRUE),
+                                                  to_return="loglik_and_tw", check_params=TRUE,
+                                                  penalized=penalized, penalty_params=penalty_params,
+                                                  allow_unstab=allow_unstab, minval=minval, alt_par=TRUE),
                                     error=function(e) minval)
           }
           fill_lok_and_red(i1, i2, loks_and_tw)
         }
       }
+    }
+
+    # Insert the best individuals of the previous round to some locations:
+    if(i1 > 1) {
+      which_to_best_ind <- sample.int(n=popsize, size=ceiling(popsize/20), replace=FALSE, prob=rep(1, popsize))
+      G[, which_to_best_ind] <- alt_ind # Use the best ind with the least number of reduntant regimes
+      generations[, , i1] <- G
+      logliks[i1, which_to_best_ind] <- loglikelihood(data=data, p=p, M=M, params=alt_ind, weight_function=weight_function,
+                                                      weightfun_pars=weightfun_pars, cond_dist=cond_dist,
+                                                      parametrization=parametrization_to_use, identification="reduced_form",
+                                                      AR_constraints=AR_constraints, mean_constraints=mean_constraints,
+                                                      weight_constraints=weight_constraints, B_constraints=NULL,
+                                                      to_return="loglik", check_params=TRUE,
+                                                      penalized=penalized, penalty_params=penalty_params,
+                                                      allow_unstab=allow_unstab, minval=minval, alt_par=TRUE)
+      redundants[i1, which_to_best_ind] <- length(which_redundant)
     }
 
     # Take care of individuals that are not good enough + calculate the numbers redundant regimes
@@ -470,6 +583,8 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
     }
     logliks[i1, which(logliks[i1,] < minval)] <- minval
     redundants[i1, which(logliks[i1,] <= minval)] <- M
+
+    #print(paste("Generation", i1, "Best log-lik:", round(max(logliks[i1,]), 2), "Mean log-lik:", round(mean(logliks[i1,]), 2)))
 
     ## Selection and the reproduction pool ##
     if(length(unique(logliks[i1,])) == 1) {
@@ -515,13 +630,14 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
     best_index0 <- which(logliks == max(logliks), arr.ind=TRUE)
     best_index <- best_index0[order(best_index0[,1], decreasing=FALSE)[1],] # First generation when the best loglik occurred
     best_ind <- generations[, best_index[2], best_index[1]]
-    best_mw <- loglikelihood(data=data, p=p, M=M, params=best_ind, weight_function=weight_function, weightfun_pars=weightfun_pars,
-                             cond_dist=cond_dist, parametrization="mean", identification="reduced_form", AR_constraints=AR_constraints,
-                             mean_constraints=mean_constraints, weight_constraints=weight_constraints, B_constraints=NULL,
-                             to_return="tw", check_params=FALSE, minval=minval, alt_par=TRUE)
+    best_tw <- loglikelihood(data=data, p=p, M=M, params=best_ind, weight_function=weight_function, weightfun_pars=weightfun_pars,
+                             cond_dist=cond_dist, parametrization=parametrization_to_use, identification="reduced_form",
+                             AR_constraints=AR_constraints, mean_constraints=mean_constraints, weight_constraints=weight_constraints,
+                             B_constraints=NULL, to_return="tw", check_params=FALSE, penalized=penalized, penalty_params=penalty_params,
+                             allow_unstab=allow_unstab, minval=minval, alt_par=TRUE)
 
     # Which regimes are wasted:
-    which_redundant <- which(vapply(1:M, function(i2) sum(best_mw[,i2] > red_criteria[1]) < red_criteria[2]*n_obs, logical(1)))
+    which_redundant <- which(vapply(1:M, function(i2) sum(best_tw[,i2] > red_criteria[1]) < red_criteria[2]*n_obs, logical(1)))
 
     # Keep track of "the alternative best individual" that has (weakly) less reduntant regimes than the current best one.
     if(length(which_redundant) <= length(which_redundant_alt)) {
@@ -563,7 +679,8 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
                                                                                  B_scale=B_scale,
                                                                                  ar_scale=ar_scale,
                                                                                  weight_scale=weight_scale,
-                                                                                 ar_scale2=ar_scale2), numeric(npars))
+                                                                                 ar_scale2=ar_scale2,
+                                                                                 fixed_params=fixed_params), numeric(npars))
 
     } else if(length(which_mutate) >= 1) { # Smart mutations
       stat_mu <- FALSE
@@ -584,8 +701,8 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
 
       ## 'Smart mutation': mutate close to a well fitting individual. We obviously don't mutate close to
       # redundant regimes but draw them at random ('rand_to_use' in what follows).
-      if(!is.null(AR_constraints) | !is.null(mean_constraints) | !is.null(weight_constraints) |
-         length(which_redundant) <= length(which_redundant_alt) | runif(1) > 0.5) {
+      if(!is.null(AR_constraints) || !is.null(mean_constraints) || !is.null(weight_constraints) ||
+         length(which_redundant) <= length(which_redundant_alt) || runif(1) > 0.5) {
         # The first option for smart mutations: smart mutate to 'alt_ind' which is the best fitting individual
         # with the least redundant regimes.
         # Note that best_ind == alt_ind when length(which_redundant) <= length(which_redundant_alt).
@@ -608,7 +725,7 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
         which_to_change <- which_redundant[1]
 
         # Pick the nonredundant regimes of best_ind and alt_ind
-        n_regpars <- p*d^2 + d + ifelse(cond_dist == "ind_Student", d^2, d*(d+1)/2)
+        n_regpars <- p*d^2 + d + ifelse(cond_dist %in% c("ind_Student", "ind_skewed_t"), d^2, d*(d+1)/2)
         non_red_regs_best <- vapply((1:M)[-which_redundant], function(i2) pick_regime(p=p, M=M, d=d, params=best_ind, cond_dist=cond_dist,
                                                                                       m=i2), numeric(n_regpars))
 
@@ -658,7 +775,9 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
                                                                                  omega_scale=omega_scale,
                                                                                  B_scale=B_scale,
                                                                                  ar_scale=ar_scale,
-                                                                                 ar_scale2=ar_scale2), numeric(npars))
+                                                                                 ar_scale2=ar_scale2,
+                                                                                 fixed_params=sm_fixed_params), numeric(npars))
+
     }
 
     # Sort components according to the transition weight parameters (for some weight functions). No sorting if constraints are employed.
@@ -669,7 +788,7 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
     }
 
     # Sort and sign change the columns of the impact matrices so that the first row of B_1 is positive and in a decreasing order.
-    if(cond_dist == "ind_Student") {
+    if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t") {
       H2 <- vapply(1:popsize, function(i2) sort_impactmats(p=p, M=M, d=d, params=H2[,i2], weight_function=weight_function,
                                                            weightfun_pars=weightfun_pars, cond_dist=cond_dist,
                                                            AR_constraints=AR_constraints, mean_constraints=mean_constraints,
@@ -687,7 +806,7 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
   }
   # # GA always optimizes with mean parametrization, and cond_dist="ind_Student" models by parametrizing impact matrices
   # # instead of B_1,...,B_M, with B_1,B_2*,...,B_M*, where B_m* = B_m - B_1 for m=2,...,M.
-  # # Switch parametriaztion back to the original one:
+  # # Switch parametrization back to the original one:
   # if(cond_dist == "ind_Student") {
   #   ret <- change_parametrization(p=p, M=M, d=d, params=ret, weight_function=weight_function, weightfun_pars=weightfun_pars,
   #                                 cond_dist=cond_dist, identification="reduced_form", AR_constraints=AR_constraints,
@@ -697,12 +816,18 @@ GAfit <- function(data, p, M, weight_function=c("relative_dens", "logistic", "ml
 
   # # GA always optimizes with mean parametrization
   # Return intercept parametrized estimate if parametrization=="intercept".
-  if(parametrization == "mean") { # This is always the case with mean_constraints
+  if(parametrization == parametrization_to_use) {
     return(ret)
-  } else {
+  } else if(parametrization == "intercept" && parametrization_to_use == "mean") {
     return(change_parametrization(p=p, M=M, d=d, params=ret, weight_function=weight_function, weightfun_pars=weightfun_pars,
                                   cond_dist=cond_dist, identification="reduced_form", AR_constraints=AR_constraints,
                                   mean_constraints=mean_constraints, weight_constraints=weight_constraints,
                                   B_constraints=NULL, change_to="intercept"))
+  } else {
+    # Here parametrization = "mean" and parametrization_to_use = "intercept", but the function shouldn't arrive here.
+    return(change_parametrization(p=p, M=M, d=d, params=ret, weight_function=weight_function, weightfun_pars=weightfun_pars,
+                                  cond_dist=cond_dist, identification="reduced_form", AR_constraints=AR_constraints,
+                                  mean_constraints=mean_constraints, weight_constraints=weight_constraints,
+                                  B_constraints=NULL, change_to="mean"))
   }
 }

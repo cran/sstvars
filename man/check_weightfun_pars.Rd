@@ -12,7 +12,7 @@ check_weightfun_pars(
   weight_function = c("relative_dens", "logistic", "mlogit", "exponential", "threshold",
     "exogenous"),
   weightfun_pars = NULL,
-  cond_dist = c("Gaussian", "Student", "ind_Student")
+  cond_dist = c("Gaussian", "Student", "ind_Student", "ind_skewed_t")
 )
 }
 \arguments{
@@ -63,8 +63,9 @@ See the vignette for more details about the weight functions.}
     values are allowed.}
 }}
 
-\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, or \code{"ind_Student"},
-where the latest is the Student's \eqn{t} distribution with independent components.}
+\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, \code{"ind_Student"},
+or \code{"ind_skewed_t"}, where \code{"ind_Student"} the Student's \eqn{t} distribution with independent components, and
+\code{"ind_skewed_t"} is the skewed \eqn{t} distribution with independent components (see Hansen, 1994).}
 }
 \value{
 Does checks the argument \code{weightfun_pars} and throws an error if something is wrong; returns

@@ -115,6 +115,7 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
   mean_constraints <- stvar$model$mean_constraints
   weight_constraints <- stvar$model$weight_constraints
   B_constraints <- stvar$model$B_constraints
+  allow_unstab <- stvar$allow_unstab # Always FALSE with relative_dens weight function
 
   # Check the exogenous weights given for simulation
   if(weight_function == "exogenous") {
@@ -152,7 +153,7 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
                              cond_dist=cond_dist, parametrization="intercept",
                              identification=identification,
                              AR_constraints=NULL, mean_constraints=NULL,
-                             weight_constraints=NULL, B_constraints=NULL)
+                             weight_constraints=NULL, B_constraints=NULL) # Not necessarily valid if allow_unstab
   all_phi0 <- pick_phi0(M=M, d=d, params=params)
   all_A <- pick_allA(p=p, M=M, d=d, params=params)
   all_A2 <- array(all_A, dim=c(d, d*p, M)) # cbind coefficient matrices of each component: m:th component is obtained at [, , m]
@@ -170,7 +171,7 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
   }
 
   # Calculate statistics that remain constant through the iterations
-  if(cond_dist == "Gaussian" || weight_function == "relative_dens") {
+  if((cond_dist == "Gaussian" && !allow_unstab) || weight_function == "relative_dens") {
     # Initial regime Gaussian stat dist simu + relative_dens weight function uses this;
     # relative dens only has Gaussian cond dist, but it is used in simulate_from_regime with Student cond dist
      Sigmas <- get_Sigmas(p=p, M=M, d=d, all_A=all_A, all_boldA=all_boldA, all_Omegas=all_Omegas)
@@ -201,7 +202,7 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
 
   # Set/generate initial values
   if(is.null(init_values)) {
-    if(cond_dist == "Gaussian") {
+    if(cond_dist == "Gaussian" && !allow_unstab) {
       # Generate the initial values from the stationary distribution of init_regime; Gaussian dist
       mu <- rep(all_mu[, init_regime], p)
       L <- t(chol_Sigmas[, , init_regime]) # Lower triangle
@@ -256,8 +257,22 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
     # Nothing to do here, uses exo_weights directly
   }
 
+  # Get bounding constants for acceptance-rejection sampling for skewed t-distribution
+  if(cond_dist == "ind_skewed_t") {
+    all_nu <- distpars[1:d] # df pars
+    all_lambda <- distpars[(d + 1):(2*d)] # skewness pars, note that het.sked ident not possible here
+    all_bc_M <- vapply(1:d, function(i1) bounding_const_M(nu=all_nu[i1], lambda=all_lambda[i1]), numeric(1)) # bounding constants
+  }
+
   # Run through the time periods and repetitions
   for(j1 in seq_len(ntimes)) {
+    if(cond_dist == "ind_skewed_t") { # Genererate sequences of structural shocks here for computational efficiency
+      all_e_t <- matrix(nrow=nsim, ncol=d) # [nsim, d]
+      for(i1 in 1:d) {
+        all_e_t[,i1] <- generate_skewed_t(n=nsim, nu=all_nu[i1], lambda=all_lambda[i1],
+                                          bc_M=all_bc_M[i1]) # nsim draws from the i1:th shock
+      }
+    }
     for(i1 in seq_len(nsim)) {
       # Calculate transition weights
       if(M == 1) {
@@ -284,15 +299,15 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
       mu_yt <- get_mu_yt_Cpp(obs=matrix(Y[i1,], nrow=1), all_phi0=all_phi0, all_A=all_A2, alpha_mt=alpha_mt)
 
       # Calculate conditional covariance matrix
-      if(cond_dist == "ind_Student" || identification == "non-Gaussianity") { # Parametrization with impact matrices
-        # Omega_yt is not used anywhere so no need to calculate it
+      if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t" || identification == "non-Gaussianity") {
+        # Paramtrization with impact matrices. Omega_yt is not used anywhere so no need to calculate it.
       } else { # Parametrization with covariance matrices
         Omega_yt <- matrix(rowSums(vapply(1:M, function(m) alpha_mt[, m]*as.vector(all_Omegas[, , m]), numeric(d*d))),
                            nrow=d, ncol=d)
       }
 
       # Calculate B_t
-      if(cond_dist == "ind_Student" || identification == "non-Gaussianity") { # Also reduced form ind_Student models here
+      if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t" || identification == "non-Gaussianity") {
         B_t <- matrix(rowSums(vapply(1:M, function(m) alpha_mt[, m]*as.vector(all_Omegas[, , m]), numeric(d*d))),
                       nrow=d, ncol=d) # weighted sum of the impact matrices.
       } else if(identification == "reduced_form") {
@@ -319,7 +334,9 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
         Z <- sqrt((distpars - 2)/distpars)*e_t # Sample from N(0, (df-2)/df*I_d) # df == distpars
         e_t <- Z*sqrt(distpars/rchisq(n=1, df=distpars)) # Sample from t_d(0, I_d, df)
       } else if(cond_dist == "ind_Student") {
-        e_t <- rt(n=d, df=distpars) # Sample from independent Student's t distributions
+        e_t <- sqrt((distpars - 2)/distpars)*rt(n=d, df=distpars) # Sample from independent Student's t distributions
+      } else if(cond_dist == "ind_skewed_t") {
+        e_t <- all_e_t[i1,] # Sample from independent skewed t distributions (drawn earlier)
       }
 
       # Calculate the current observation
@@ -358,15 +375,15 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
         # Calculate conditional mean and conditional covariance matrix
         mu_yt2 <- get_mu_yt_Cpp(obs=matrix(Y2[i1,], nrow=1), all_phi0=all_phi0, all_A=all_A2, alpha_mt=alpha_mt2)
 
-        if(cond_dist == "ind_Student" || identification == "non-Gaussianity") { # Parametrization with impact matrices
+        if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t" || identification == "non-Gaussianity") {
           # Omega_yt2 is not used anywhere so no need to calculate it
         } else { # Parametrization with covariance matrices
-        Omega_yt2 <- matrix(rowSums(vapply(1:M, function(m) alpha_mt2[, m]*as.vector(all_Omegas[, , m]),
-                                           numeric(d*d))), nrow=d, ncol=d)
+          Omega_yt2 <- matrix(rowSums(vapply(1:M, function(m) alpha_mt2[, m]*as.vector(all_Omegas[, , m]),
+                                             numeric(d*d))), nrow=d, ncol=d)
         }
 
         # Calculate B_t
-        if(cond_dist == "ind_Student" || identification == "non-Gaussianity") { # Also reduced form ind_Student models here
+        if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t" || identification == "non-Gaussianity") {
           B_t2 <- matrix(rowSums(vapply(1:M, function(m) alpha_mt2[, m]*as.vector(all_Omegas[, , m]),
                                         numeric(d*d))), nrow=d, ncol=d) # weighted sum of the impact matrices.
         } else if(identification == "reduced_form") {
@@ -476,6 +493,7 @@ simulate_from_regime <- function(stvar, regime=1, nsim=1, init_values=NULL, use_
   mean_constraints <- stvar$model$mean_constraints
   weight_constraints <- stvar$model$weight_constraints
   B_constraints <- stvar$model$B_constraints
+  allow_unstab <- stvar$allow_unstab
 
   # Collect parameter values
   params <- reform_constrained_pars(p=p, M=M, d=d, params=stvar$params,
@@ -497,7 +515,7 @@ simulate_from_regime <- function(stvar, regime=1, nsim=1, init_values=NULL, use_
 
   # Create VAR params corresponding the given regime
   # Note that structural models not implemented here: no need here because just simulates initial values to the simulator function
-  if(cond_dist == "ind_Student" || identification == "non-Gaussianity") {
+  if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t" || identification == "non-Gaussianity") {
     new_params <- c(all_phi0[, regime], all_A[, , , regime],
                     vec(all_Omegas[, , regime]), distpars)
   } else {
@@ -509,7 +527,7 @@ simulate_from_regime <- function(stvar, regime=1, nsim=1, init_values=NULL, use_
   # to building the model.
   new_stvar <- STVAR(p=p, M=1, d=d, params=new_params, weight_function="threshold", weightfun_pars=c(1, 1), cond_dist=cond_dist,
                      parametrization="intercept", identification="reduced_form", AR_constraints=NULL, mean_constraints=NULL,
-                     weight_constraints=NULL, B_constraints=NULL, calc_std_errors=FALSE)
+                     weight_constraints=NULL, B_constraints=NULL, calc_std_errors=FALSE, allow_unstab=allow_unstab)
 
   if(is.null(init_values)) {
     all_mu <- get_regime_means(p=p, M=M, d=d, params=params,
@@ -531,10 +549,12 @@ simulate_from_regime <- function(stvar, regime=1, nsim=1, init_values=NULL, use_
                         cond_dist=stvar$model$cond_dist, parametrization=stvar$model$parametrization,
                         identification=stvar$model$identification, AR_constraints=stvar$model$AR_constraints,
                         mean_constraints=stvar$model$mean_constraints, weight_constraints=stvar$model$weight_constraints,
-                        B_constraints=stvar$model$B_constraints, to_return="tw")
-    tw <- tw[(nsim + 1):(nrow(tw)), regime] # Take the transition weights of the last 100 observations
+                        B_constraints=stvar$model$B_constraints, to_return="tw", allow_unstab=allow_unstab)
+
+    tw_both <- tw[(nsim + 1):(nrow(tw)), ]
+    tw <- tw[(nsim + 1):(nrow(tw)), regime] # Take the transition weights of the last 100 observations (nsim+100+p obs simulated)
     twmax_ind <- which(abs(tw - max(tw)) < 0.001)[1] # Ind with highest tw, but not exactly to avoid overly skewed results
-    samp <- ret[(nsim-p+1):nrow(ret), , drop=FALSE] # -p so the twmax_ind is tw_ind - p + 1
+    samp <- ret[(nsim+1):nrow(ret), , drop=FALSE] # Take the last nsim obs
     ret <- samp[twmax_ind:(twmax_ind + p - 1), , drop=FALSE] # Return the previous p obs from the one with highest tw
   }
   ret

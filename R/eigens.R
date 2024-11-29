@@ -58,7 +58,8 @@ get_omega_eigens <- function(stvar) {
 
 get_boldA_eigens_par <- function(p, M, d, params,
                                  weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
-                                 weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student"), parametrization=c("intercept", "mean"),
+                                 weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
+                                 parametrization=c("intercept", "mean"),
                                  identification=c("reduced_form", "recursive", "heteroskedasticity", "non-Gaussianity"),
                                  AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL, B_constraints=NULL) {
   parametrization <- match.arg(parametrization)
@@ -98,7 +99,8 @@ get_boldA_eigens_par <- function(p, M, d, params,
 
 get_omega_eigens_par <- function(p, M, d, params,
                                  weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
-                                 weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student"), parametrization=c("intercept", "mean"),
+                                 weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
+                                 parametrization=c("intercept", "mean"),
                                  identification=c("reduced_form", "recursive", "heteroskedasticity", "non-Gaussianity"),
                                  AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL, B_constraints=NULL) {
   parametrization <- match.arg(parametrization)
@@ -117,7 +119,7 @@ get_omega_eigens_par <- function(p, M, d, params,
                                     AR_constraints=AR_constraints, mean_constraints=mean_constraints,
                                     weight_constraints=weight_constraints, B_constraints=B_constraints)
   all_Omega <- pick_Omegas(p=p, M=M, d=d, params=params, cond_dist=cond_dist, identification=identification)
-  if(cond_dist == "ind_Student") {
+  if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t") {
     all_Omega <- array(vapply(1:M, function(m) tcrossprod(all_Omega[,,m]), numeric(d^2)), dim=c(d, d, M))
   }
   matrix(vapply(1:M, function(m) eigen(all_Omega[, , m], symmetric=TRUE, only.values=TRUE)$'values', numeric(d)),
@@ -130,13 +132,14 @@ get_omega_eigens_par <- function(p, M, d, params,
 #' @description \code{warn_eigens} warns if the model contains near-unit-roots in some regimes
 #'
 #' @inheritParams get_boldA_eigens
+#' @inheritParams loglikelihood
 #' @param tol if eigenvalue is closer than \code{tol} to its bound, a warning is thrown
 #' @details Warns if, for some regime, some moduli of "bold A" eigenvalues are larger than \code{1 - tol} or
 #'  some eigenvalue of the error term covariance matrix is smaller than \code{tol}.
 #' @return Doesn't return anything.
 #' @keywords internal
 
-warn_eigens <- function(stvar, tol=0.002) {
+warn_eigens <- function(stvar, tol=0.002, allow_unstab=FALSE) {
   boldA_eigens <- get_boldA_eigens(stvar)
   omega_eigens <- get_omega_eigens(stvar)
   M <- stvar$model$M
@@ -144,8 +147,12 @@ warn_eigens <- function(stvar, tol=0.002) {
   near_singular <- vapply(1:M, function(i1) any(abs(omega_eigens[,i1]) < tol), logical(1))
   if(any(near_nonstat)) {
     my_string1 <- ifelse(sum(near_nonstat) == 1,
-                         paste("Regime", which(near_nonstat),"has near-unit-roots! "),
-                         paste("Regimes", paste(which(near_nonstat), collapse=" and ") ,"have near-unit-roots! "))
+                         paste("Regime", which(near_nonstat),
+                               ifelse(allow_unstab, "has near-unit-roots (or roots outside the unit circle)! ",
+                                      "has near-unit-roots! ")),
+                         paste("Regimes", paste(which(near_nonstat), collapse=" and "),
+                               ifelse(allow_unstab, "have near-unit-roots (or roots outside the unit circle)! ",
+                                      "has near-unit-roots! ")))
   } else {
     my_string1 <- NULL
   }
@@ -159,7 +166,7 @@ warn_eigens <- function(stvar, tol=0.002) {
   }
   if(any(near_nonstat) || any(near_singular)) {
     warning(paste0(my_string1, my_string2,
-                   "Consider building a model from the next-largest local maximum with the function 'alt_stvar'",
+                   "Consider building a model from the next-largest local maximum with the function 'alt_stvar' ",
                    "by adjusting its argument 'which_largest'."))
   }
 }

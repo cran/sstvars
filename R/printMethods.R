@@ -46,10 +46,21 @@ print.stvar <- function(x, ..., digits=2, summary_print=FALSE, standard_error_pr
   var_names <- colnames(stvar$data)
   if(is.null(var_names)) var_names <- paste0("Var.", 1:d)
 
+  if(stvar$allow_unstab) { # Check the stability condition
+    stab_satisfied <- stab_conds_satisfied(p=p, M=M, d=d, params=params)
+  } else {
+    stab_satisfied <- TRUE
+  }
+
   # Regular / summary print
   if(!standard_error_print) {
-    all_mu <- stvar$uncond_moments$regime_means
-    all_sd <- sqrt(stvar$uncond_moments$regime_vars)
+    if(stab_satisfied) {
+      all_mu <- stvar$uncond_moments$regime_means
+      all_sd <- sqrt(stvar$uncond_moments$regime_vars)
+    } else { # Cannot calculate uncond means/sds if stab conds are not satisfied
+      all_mu <- matrix(NA, nrow=d, ncol=M)
+      all_sd <- matrix(NA, nrow=d, ncol=M)
+    }
     npars <- length(params)
     T_obs <- ifelse(is.null(stvar$data), NA, nrow(stvar$data) - p)
     params <- reform_constrained_pars(p=p, M=M, d=d, params=params,
@@ -96,6 +107,9 @@ print.stvar <- function(x, ..., digits=2, summary_print=FALSE, standard_error_pr
     } else {
       cat("\n\n")
     }
+    if(!stab_satisfied) {
+      cat("The usual stability condition is not satisfied for all regimes!\n\n")
+    }
 
     if(summary_print) {
       all_boldA_eigens <- get_boldA_eigens(stvar)
@@ -120,6 +134,12 @@ print.stvar <- function(x, ..., digits=2, summary_print=FALSE, standard_error_pr
       if(cond_dist == "Student" || cond_dist == "ind_Student") {
         if(m == 1) {
           cat(paste0("Degrees of freedom: ", paste0(format_value(distpars), collapse=", "), " (for all regimes)"), "\n")
+        }
+      } else if(cond_dist == "ind_skewed_t") {
+        if(m == 1) {
+          cat(paste0("Degrees of freedom: ", paste0(format_value(distpars[1:d]), collapse=", "), " (for all regimes)"), "\n")
+          cat(paste0("Skewness params:   ", paste0(format_value(distpars[(d + 1):length(distpars)]), collapse=", "),
+                     " (for all regimes)"), "\n")
         }
       }
       if(summary_print) {
@@ -165,13 +185,13 @@ print.stvar <- function(x, ..., digits=2, summary_print=FALSE, standard_error_pr
         df <- cbind(df, plus)
       }
       df[, tmp_names[p*(d + 2) + 1]] <- left_brackets
-      if(cond_dist == "ind_Student") {
+      if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t") {
         df[, c("B", tmp_names[(p*(d + 2) + 2):(p*(d + 2) + d)])] <- format_value(all_Omega[, , m])
       } else { # cond_dist == "Gaussian" or "Student"
         df[, c("Omega", tmp_names[(p*(d + 2) + 2):(p*(d + 2) + d)])] <- format_value(all_Omega[, , m])
       }
       df[, tmp_names[p*(d + 2) + d + 1]] <- rep("]", times=d)
-      if(cond_dist != "ind_Student") df[, "1/2"] <- rep(" ", d)
+      if(!(cond_dist %in% c("ind_Student", "ind_skewed_t"))) df[, "1/2"] <- rep(" ", d)
       df[, tmp_names[p*(d + 2) + d + 2]] <- paste0("eps", 1:d)
       names_to_omit <- unlist(lapply(c("plus", "eq", "round_lbrackets", "round_rbrackets", tmp_names),
                                      function(nam) grep(nam, colnames(df))))
@@ -180,7 +200,7 @@ print.stvar <- function(x, ..., digits=2, summary_print=FALSE, standard_error_pr
       cat("\n")
       if(summary_print) {
         cat("Error term correlation matrix:\n")
-        if(cond_dist == "ind_Student") {
+        if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t") {
           print(cov2cor(tcrossprod(all_Omega[, , m])), digits=digits) # Cov mat obtained from the impact matrix
         } else {
           print(cov2cor(all_Omega[, , m]), digits=digits)
@@ -310,6 +330,12 @@ print.stvar <- function(x, ..., digits=2, summary_print=FALSE, standard_error_pr
         if(m == 1) {
           cat(paste0("Degrees of freedom: ", paste0(format_value(distpars), collapse=", "), " (for all regimes)"), "\n")
         }
+      } else if(cond_dist == "ind_skewed_t") {
+        if(m == 1) {
+          cat(paste0("Degrees of freedom: ", paste0(format_value(distpars[1:d]), collapse=", "), " (for all regimes)"), "\n")
+          cat(paste0("Skewness params:   ", paste0(format_value(distpars[(d + 1):length(distpars)]), collapse=", "),
+                     " (for all regimes)"), "\n")
+        }
       }
       if(weight_function == "relative_dens") {
         if(m < M) cat(paste("Weight param:", format_value(weightpars[m])), "\n")
@@ -342,13 +368,13 @@ print.stvar <- function(x, ..., digits=2, summary_print=FALSE, standard_error_pr
         df <- cbind(df, plus)
       }
       df[, tmp_names[p*(d + 2) + 1]] <- left_brackets
-      if(cond_dist == "ind_Student") {
+      if(cond_dist == "ind_Student" || cond_dist == "ind_skewed_t") {
         df[, c("B", tmp_names[(p*(d + 2) + 2):(p*(d + 2) + d)])] <- format_value(all_Omega[, , m])
       } else {
         df[, c("Omega", tmp_names[(p*(d + 2) + 2):(p*(d + 2) + d)])] <- format_value(all_Omega[, , m])
       }
       df[, tmp_names[p*(d + 2) + d + 1]] <- right_brackets
-      if(cond_dist != "ind_Student") df[, "1/2"] <- rep(" ", d)
+      if(!(cond_dist %in% c("ind_Student", "ind_skewed_t"))) df[, "1/2"] <- rep(" ", d)
       df[, tmp_names[p*(d + 2) + d + 2]] <- paste0("eps", 1:d)
       names_to_omit <- unlist(lapply(c("plus", "eq", "round_lbrackets", "round_rbrackets", tmp_names),
                                      function(nam) grep(nam, colnames(df))))
@@ -401,16 +427,17 @@ print.stvar <- function(x, ..., digits=2, summary_print=FALSE, standard_error_pr
 #' @description \code{print.stvarsum} is a print method for object \code{'stvarsum'} generated
 #'   by \code{summary.stvar}.
 #'
+#' @inheritParams print.stvar
 #' @param x object of class 'stvarsum' generated by \code{summary.stvar}.
 #' @param ... currently not used.
 #' @param digits the number of digits to be printed.
 #' @return Returns the input object \code{x} invisibly.
 #' @export
 
-print.stvarsum <- function(x, ..., digits) {
+print.stvarsum <- function(x, ..., digits, standard_error_print=FALSE) {
   stvarsum <- x
   if(missing(digits)) digits <- stvarsum$digits
-  print.stvar(stvarsum$stvar, ..., digits=digits, summary_print=TRUE)
+  print.stvar(stvarsum$stvar, ..., digits=digits, summary_print=TRUE, standard_error_print=stvarsum$standard_error_print)
   invisible(stvarsum)
 }
 

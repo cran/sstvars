@@ -2,7 +2,7 @@
 % Please edit documentation in R/MAINest.R
 \name{fitSTVAR}
 \alias{fitSTVAR}
-\title{Two-phase maximum likelihood estimation of a reduced form smooth transition VAR model}
+\title{Two-phase or three-phase (penalized) maximum likelihood estimation of a reduced form smooth transition VAR model}
 \usage{
 fitSTVAR(
   data,
@@ -11,18 +11,22 @@ fitSTVAR(
   weight_function = c("relative_dens", "logistic", "mlogit", "exponential", "threshold",
     "exogenous"),
   weightfun_pars = NULL,
-  cond_dist = c("Gaussian", "Student", "ind_Student"),
+  cond_dist = c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
   parametrization = c("intercept", "mean"),
   AR_constraints = NULL,
   mean_constraints = NULL,
   weight_constraints = NULL,
-  nrounds = (M + 1)^5,
+  estim_method,
+  penalized,
+  penalty_params = c(0.05, 0.2),
+  allow_unstab,
+  nrounds,
   ncores = 2,
   maxit = 1000,
   seeds = NULL,
   print_res = TRUE,
   use_parallel = TRUE,
-  filter_estimates = TRUE,
+  calc_std_errors = TRUE,
   ...
 )
 }
@@ -74,18 +78,19 @@ See the vignette for more details about the weight functions.}
     values are allowed.}
 }}
 
-\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, or \code{"ind_Student"},
-where the latest is the Student's \eqn{t} distribution with independent components.}
+\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, \code{"ind_Student"},
+or \code{"ind_skewed_t"}, where \code{"ind_Student"} the Student's \eqn{t} distribution with independent components, and
+\code{"ind_skewed_t"} is the skewed \eqn{t} distribution with independent components (see Hansen, 1994).}
 
 \item{parametrization}{\code{"intercept"} or \code{"mean"} determining whether the model is parametrized with intercept
 parameters \eqn{\phi_{m,0}} or regime means \eqn{\mu_{m}}, m=1,...,M.}
 
-\item{AR_constraints}{a size \eqn{(Mpd^2 x q)} constraint matrix \eqn{C} specifying linear constraints
+\item{AR_constraints}{a size \eqn{(Mpd^2 \times q)} constraint matrix \eqn{C} specifying linear constraints
 to the autoregressive parameters. The constraints are of the form
-\eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 x 1),\ m=1,...,M},
-contains the coefficient matrices and \eqn{\psi} \eqn{(q x 1)} contains the related parameters.
+\eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 \times 1),\ m=1,...,M},
+contains the coefficient matrices and \eqn{\psi} \eqn{(q \times 1)} contains the related parameters.
 For example, to restrict the AR-parameters to be the identical across the regimes, set \eqn{C =}
-[\code{I:...:I}]' \eqn{(Mpd^2 x pd^2)} where \code{I = diag(p*d^2)}.}
+[\code{I:...:I}]' \eqn{(Mpd^2 \times pd^2)} where \code{I = diag(p*d^2)}.}
 
 \item{mean_constraints}{Restrict the mean parameters of some regimes to be identical? Provide a list of numeric vectors
 such that each numeric vector contains the regimes that should share the common mean parameters. For instance, if
@@ -98,10 +103,27 @@ that is, when \code{parametrization="mean"}.}
 specifying linear constraints on the transition weight parameters \eqn{\alpha}.
 The constraints are of the form \eqn{\alpha = R\xi + r}, where \eqn{R} is a known \eqn{(a\times l)}
 constraint matrix of full column rank (\eqn{a} is the dimension of \eqn{\alpha}), \eqn{r} is a known \eqn{(a\times 1)} constant,
-and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} in order to constrain the
-the weight parameter to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).}
+and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} to constrain the
+weight parameters to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).}
 
-\item{nrounds}{the number of estimation rounds that should be performed.}
+\item{estim_method}{either \code{"two-phase"} or \code{"three-phase"} (the latter is the default
+option for threshold models and the former is currently the only option for other models). See details.}
+
+\item{penalized}{should penalized log-likelihood function be used that penalizes the log-likelihood function when
+the parameter values are close the boundary of the stability region or outside it? If \code{TRUE}, estimates
+that do not satisfy the stability condition are allowed (except when \code{weight_function="relative_dens"}).
+The default is \code{TRUE} for three-phase estimation and \code{FALSE} for two-phase estimation.}
+
+\item{penalty_params}{a numeric vector with two positive elements specifying the penalization parameters:
+the first element determined how far from the boundary of the stability region the penalization starts
+(a number between zero and one, smaller number starts penalization closer to the boundary) and the second element
+is a tuning parameter for the penalization (a positive real number, a higher value penalizes non-stability more).}
+
+\item{allow_unstab}{If \code{TRUE}, estimates not satisfying the stability condition are allowed. Always \code{FALSE} if
+\code{weight_function="relative_dens"}.}
+
+\item{nrounds}{the number of estimation rounds that should be performed. The default is \code{(M*ncol(data))^3}
+when \code{estim_method="two-phase"} and \code{(M*ncol(data))^2} when \code{estim_method="three-phase"}.}
 
 \item{ncores}{the number CPU cores to be used in parallel computing.}
 
@@ -115,7 +137,7 @@ for each call to the genetic algorithm, or \code{NULL} for not initializing the 
 \item{use_parallel}{employ parallel computing? If \code{use_parallel=FALSE && print_res=FALSE},
 nothing is printed during the estimation process.}
 
-\item{filter_estimates}{should the likely inappropriate estimates be filtered? See details.}
+\item{calc_std_errors}{Calculate approximate standard errors (based on standard asymptotics)?}
 
 \item{...}{additional settings passed to the function \code{GAfit} employing the genetic algorithm.}
 }
@@ -140,29 +162,50 @@ Returns an S3 object of class \code{'stvar'} defining a smooth transition VAR mo
    \item{all_logliks}{The log-likelihood of the estimates from all estimation rounds, if applicable.}
    \item{which_converged}{Indicators of which estimation rounds converged, if applicable.}
    \item{which_round}{Indicators of which round of optimization each estimate belongs to, if applicable.}
+   \item{LS_estimates}{The least squares estimates of the parameters in the form
+     \eqn{(\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\alpha} (intercepts replaced by unconditional means
+     if mean parametrization is used), if applicable.}
 }
 \description{
-\code{fitSTVAR} estimates a reduced form smooth transition VAR model in two phases:
-  in the first phase, it uses a genetic algorithm to find starting values for a gradient based
-  variable metric algorithm, which it then uses to finalize the estimation in the second phase.
-  Parallel computing is utilized to perform multiple rounds of estimations in parallel.
+\code{fitSTVAR} estimates a reduced form smooth transition VAR model in two phases
+  or three phases. In additional ML estimation, also penalized ML estimation is available.
 }
 \details{
 If you wish to estimate a structural model, estimate first the reduced form model and then use the
  use the function \code{fitSSTVAR} to create (and estimate if necessary) the structural model
  based on the estimated reduced form model.
 
+ \strong{three-phase estimation.} With \code{estim_method="three-phase"} (not available for models with \code{relative_dens}
+ weight function), an extra phase is added to the beginning of the two-phase estimation procedure:
+ the autoregressive and weight function parameters are first estimated by the method of (penalized) least squares. Then,
+ the rest of the parameters are estimated by (penalized) ML with the genetic algorithm conditionally on the LS estimates.
+ Finally, all the parameters are estimated by (penalized) ML by initializing a gradient based variable metric algorithm
+ from initial estimates obtained from the first two phases. This allows to use substantially decrease the required
+ number of estimation rounds, and thereby typically speeds up the estimation substantially. On the other hand, the three-phase
+ procedure tends to produce estimates close to the initial (penalized) LS estimates, while the two-phase procedure explores
+ the parameter space more thoroughly (when a large enough number of estimation rounds is ran).
+
+ \strong{Penalized estimation.} The penalized estimation (\code{penalized=TRUE}) maximizes the penalized log-likelihood function
+ in which a penalty term is added. The penalty term becomes nonzero when the parameter values are close to the boundary of the
+ stability region or outside it, it increases in the modulus of the eigenvalues of the companion form AR matrices of the regimes.
+ With \code{allow_unstab=TRUE}, allowing for unstable estimates, it allows the estimation algorithms to explore the parameter space
+ outside the stability region, but with high enough penalization, the optimization algorithm eventually converges back to the
+ stability region. By default, penalized estimation (with unstable estimates allow) is used for \code{estim_method="three-phase"}
+ and not used for \code{estim_method="two-phase"}.
+
+ \strong{The rest concerns both two-phase and three-phase procedures.}\\
  Because of complexity and high multimodality of the log-likelihood function, it is \strong{not certain}
- that the estimation algorithm will end up in the global maximum point. It is expected that many of the
- estimation rounds will end up in some local maximum or a saddle point instead. Therefore, a (sometimes very large)
- number of estimation rounds is required for reliable results. Due to identification problems and high complexity of
- the surface of the log-likelihood function, the estimation may fail especially in the cases where the number of
- regimes is chosen too large.
+ that the estimation algorithm will end up in the global maximum point. When \code{estim_method="two-phase"},
+ it is expected that many of the estimation rounds will end up in some local maximum or a saddle point instead.
+ Therefore, a (sometimes very large) number of estimation rounds is required for reliable results
+ (when \code{estim_method="three-phase"} substantially smaller number should be sufficient). Due to
+ identification problems and high complexity of the surface of the log-likelihood function, the estimation may
+ fail especially in the cases where the number of regimes is chosen too large.
 
  The estimation process is computationally heavy and it might take considerably long time for large models to
- estimate. Note that estimation of model with \code{cond_dist == "ind_Student"} is computationally substantially
- more demanding than standard Gaussian and Student's t models due to the different structure of the log-likelihood
- function (parametrized directly via impact matrices rather than covariance matrices of the regimes).
+ estimate, particularly if \code{estim_method="two-phase"}. Note that reliable estimation of model with
+ \code{cond_dist == "ind_Student"} or \code{"ind_skewed_t"} is more difficult than with Gaussian or Student's t
+ models due to the increased complexity.
 
  If the iteration limit \code{maxit} in the variable metric algorithm is reached, one can continue the estimation by
  iterating more with the function \code{iterate_more}. Alternatively, one may use the found estimates as starting values
@@ -172,23 +215,22 @@ If you wish to estimate a structural model, estimate first the reduced form mode
  \strong{If the estimation algorithm performs poorly}, it usually helps to scale the individual series so that they
  vary roughly in the same scale. This makes it is easier to draw reasonable AR coefficients and (with some weight functions)
  weight parameter values in the genetic algorithm. Even if the estimation algorithm somewhat works, it should be preferred
- to scale the data so that most of the AR coefficients will not be very large, as the estimation algorithm works better with
+ to scale the data so that most of the AR coefficients will not be very large, as the genetic algorithm works better with
  relatively small AR coefficients. If needed, another package can be used to fit linear VARs to the series to see which scaling
  of the series results in relatively small AR coefficients. You should avoid very small (or very high) variance in the data as
- well so that the eigenvalues of the covariance matrices are in a reasonable range.
+ well, so that the eigenvalues of the covariance matrices are in a reasonable range.
 
  \strong{weight_constraints:} If you are using weight constraints other than restricting some of the weight parameters to known
  constants, make sure the constraints are sensible. Otherwise, the estimation may fail due to the estimation algorithm not being
  able to generate reasonable random guesses for the values of the constrained weight parameters.
 
- \strong{Filtering inappropriate estimates:} If \code{filter_estimates == TRUE}, the code will automatically filter
- through estimates that it deems "inappropriate". That is, estimates that are not likely solutions of interest.
+ \strong{Filtering inappropriate estimates:} \code{fitSTVAR} automatically filters through estimates
+ that it deems "inappropriate". That is, estimates that are not likely solutions of interest.
  Specifically, solutions that incorporate a near-singular error term covariance matrix (any eigenvalue less than \eqn{0.002}),
  any modulus of the eigenvalues of the companion form AR matrices larger than $0.9985$ (indicating the necessary condition for
  stationarity is close to break), or transition weights such that they are close to zero for almost all \eqn{t} for at least
- one regime. You can also set \code{filter_estimates=FALSE} and find the solutions of interest yourself by using the
- function \code{alt_stvar} (which can used with \code{filter_estimates=TRUE} as well since results from all estimation rounds
- are saved).
+ one regime. You can also always find the solutions of interest yourself by using the function \code{alt_stvar} as well since
+ results from all estimation rounds are saved).
 }
 \section{S3 methods}{
 
@@ -210,9 +252,9 @@ If you wish to estimate a structural model, estimate first the reduced form mode
 # Estimate Gaussian STVAR model of autoregressive order p=3 and two regimes (M=2),
 # with the weighted relative stationary densities of the regimes as the transition
 # weight function. The estimation is performed with 2 rounds and 2 CPU cores, with
-# the random number generator seeds set for reproducibility.
-fit32 <- fitSTVAR(gdpdef, p=3, M=2, weight_function="relative_dens",
- cond_dist="Gaussian", nrounds=2, ncores=2, seeds=1:2)
+# the random number generator seeds set for reproducibility (two-phase estimation):
+fit32 <- fitSTVAR(gdpdef, p=3, M=2, weight_function="relative_dens", cond_dist="Gaussian",
+ nrounds=2, ncores=2, seeds=1:2)
 
 # Examine the results:
 fit32 # Printout of the estimates
@@ -224,22 +266,23 @@ profile_logliks(fit32) # Profile log-likelihood functions about the estimate
 
 # Estimate a two-regime Student's t STVAR p=3 model with logistic transition weights
 # and the first lag of the second variable as the switching variable, only two
-# estimation rounds using two CPU cores:
+# estimation rounds using two CPU cores (three-phase estimation):
 fitlogistict32 <- fitSTVAR(gdpdef, p=3, M=2, weight_function="logistic", weightfun_pars=c(2, 1),
  cond_dist="Student", nrounds=2, ncores=2, seeds=1:2)
 summary(fitlogistict32) # Summary printout of the estimates
 
-# Estimate a two-regime threshold VAR p=3 model with independent Student's t shocks.
+# Estimate a two-regime threshold VAR p=3 model with independent skewed t shocks
+# using the three-phase estimation procedure.
 # The first lag of the the second variable is specified as the switching variable,
-# and the threshold parameter constrained to the fixed value 1.
+# and the threshold parameter constrained to the fixed value 1 (three-phase estimation):
 fitthres32wit <- fitSTVAR(gdpdef, p=3, M=2, weight_function="threshold", weightfun_pars=c(2, 1),
-  cond_dist="ind_Student", weight_constraints=list(R=0, r=1), nrounds=2, ncores=2, seeds=1:2)
+  cond_dist="ind_skewed_t", weight_constraints=list(R=0, r=1), nrounds=2, ncores=2, seeds=1:2)
 plot(fitthres32wit) # Plot the fitted transition weights
 
 # Estimate a two-regime STVAR p=1 model with exogenous transition weights defined as the indicator
 # of NBER based U.S. recessions (source: St. Louis Fed database). Moreover, restrict the AR matrices
 # to be identical across the regimes (i.e., allowing for time-variation in the intercepts and the
-# covariance matrix only):
+# covariance matrix only), (three-phase estimation):
 
 # Step 1: Define transition weights of Regime 1 as the indicator of NBER based U.S. recessions
 # (the start date of weights is start of data + p, since the first p values are used as the initial
@@ -263,51 +306,27 @@ C_122 <- rbind(diag(1*2^2), diag(1*2^2))
 # Step 4: Estimate the model by specifying the weights in the argument 'weightfun_pars'
 # and the constraint matrix in the argument 'AR_constraints':
 fitexo12cit <- fitSTVAR(gdpdef, p=1, M=2, weight_function="exogenous", weightfun_pars=twmat,
-  cond_dist="ind_Student", AR_constraints=C_122, nrounds=2, ncores=2, seeds=1:2)
+ cond_dist="ind_Student", AR_constraints=C_122, nrounds=2, ncores=2, seeds=1:2)
 plot(fitexo12cit) # Plot the transition weights
 summary(fitexo12cit) # Summary printout of the estimates
 
 # Estimate a two-regime Gaussian STVAR p=1 model with the weighted relative stationary densities
-# of the regimes as the transition weight function, and the means of the regimes
-# and AR matrices constrained to be identical across the regimes (i.e., allowing for time-varying
-# conditional covariance matrix only):
-fit12cm <- fitSTVAR(gdpdef, p=1, M=2, weight_function="relative_dens", cond_dist="Gaussian",
- AR_constraints=C_122, mean_constraints=list(1:2), parametrization="mean", nrounds=2, seeds=1:2)
-fit12cm # Print the estimates
-
-# Estimate a two-regime Gaussian STVAR p=1 model with the weighted relative stationary densities
 # of the regimes as the transition weight function; constrain AR matrices to be identical
 # across the regimes and also constrain the off-diagonal elements of the AR matrices to be zero.
+# Moreover, constrain the unconditional means of both regimes to be equal (two-phase estimation):
 mat0 <- matrix(c(1, rep(0, 10), 1, rep(0, 8), 1, rep(0, 10), 1), nrow=2*2^2, byrow=FALSE)
 C_222 <- rbind(mat0, mat0) # The constraint matrix
-fit22c <- fitSTVAR(gdpdef, p=2, M=2, weight_function="relative_dens", cond_dist="Gaussian",
- AR_constraints=C_222, nrounds=2, seeds=1:2)
-fit22c # Print the estimates
+fit22cm <- fitSTVAR(gdpdef, p=2, M=2, weight_function="relative_dens", cond_dist="Gaussian",
+ parametrization="mean", AR_constraints=C_222, mean_constraints=list(1:2), nrounds=2, seeds=1:2)
+fit22cm # Print the estimates
 
-# Estimate a two-regime Student's t STVAR p=3 model with logistic transition weights
-# and the first lag of the second variable as the switching variable. Constraint the location
-# parameter to the fixed value 1 and leave the scale parameter unconstrained.
+# Estimate a two-regime Student's t STVAR p=3 model with logistic transition weights and the
+# first lag of the second variable as the switching variable. Constraint the location parameter
+# to the fixed value 1 and leave the scale parameter unconstrained (three-phase estimation):
 fitlogistic32w <- fitSTVAR(gdpdef, p=3, M=2, weight_function="logistic", weightfun_pars=c(2, 1),
- weight_constraints=list(R=matrix(c(0, 1), nrow=2), r=c(1, 0)), nrounds=2, seeds=1:2)
+ cond_dist="Student", weight_constraints=list(R=matrix(c(0, 1), nrow=2), r=c(1, 0)), nrounds=2,
+ seeds=1:2)
 plot(fitlogistic32w) # Plot the fitted transition weights
-
-# Estimate a two-regime Gaussian STVAR p=3 model with multinomial logit transition weights
-# using the second variable is the switching variable with two lags. Constrain the AR matrices
-# identical across the regimes (allowing for time-variation in the intercepts and covariance
-# matrix).
-C_322 <- rbind(diag(3*2^2), diag(3*2^2)) # The constraint matrix
-fitmlogit32c <- fitSTVAR(gdpdef, p=3, M=2, weight_function="mlogit", cond_dist="Gaussian",
- weightfun_pars=list(vars=2, lags=2), AR_constraints=C_322, nrounds=1, seeds=3, ncores=1)
-plot(fitmlogit32c) # Plot the fitted transition weights
-
-# Estimate a two-regime Gaussian STVAR p=3 model with exponential transition weights and the first
-# lag of the second variable as switching variable, and AR parameter constrained identical across
-# the regimes, means constrained identical across the regimes, and the location parameter
-# constrained to 0.5 (but scale parameter unconstrained).
-fitexp32cmw <- fitSTVAR(gdpdef, p=3, M=2, weight_function="exponential", weightfun_pars=c(2, 1),
- cond_dist="Student", AR_constraints=C_322, mean_constraints=list(1:2),
- weight_constraints=list(R=matrix(c(0, 1), nrow=2), r=c(0.5, 0)), nrounds=1, seeds=1, ncores=1)
-summary(fitexp32cmw) # Summary printout of the estimates
 }
 }
 \references{
@@ -316,6 +335,7 @@ summary(fitexp32cmw) # Summary printout of the estimates
      \emph{Journal of Econometrics}, \strong{84}:1, 1-36.
    \item Hubrich K., Teräsvirta. T. 2013. Thresholds and Smooth Transitions in Vector Autoregressive Models.
      \emph{CREATES Research Paper 2013-18, Aarhus University.}
+   \item Koivisto T., Luoto J., Virolainen S. 2025. Unpublished working paper.
    \item Lanne M., Virolainen S. 2024. A Gaussian smooth transition vector autoregressive model:
       An application to the macroeconomic effects of severe weather shocks. Unpublished working
       paper, available as arXiv:2403.14216.
@@ -329,5 +349,5 @@ summary(fitexp32cmw) # Summary printout of the estimates
  }
 }
 \seealso{
-\code{\link{fitSSTVAR}}, \code{\link{STVAR}}, \code{\link{GAfit}}, \code{\link{iterate_more}}
+\code{\link{fitSSTVAR}}, \code{\link{STVAR}}, \code{\link{GAfit}}, \code{\link{iterate_more}}, \code{\link{filter_estimates}}
 }

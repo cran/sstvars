@@ -2,7 +2,7 @@
 % Please edit documentation in R/geneticAlgorithm.R
 \name{GAfit}
 \alias{GAfit}
-\title{Genetic algorithm for preliminary estimation of a STVAR models}
+\title{Genetic algorithm for preliminary estimation of reduced form STVAR models}
 \usage{
 GAfit(
   data,
@@ -11,7 +11,7 @@ GAfit(
   weight_function = c("relative_dens", "logistic", "mlogit", "exponential", "threshold",
     "exogenous"),
   weightfun_pars = NULL,
-  cond_dist = c("Gaussian", "Student", "ind_Student"),
+  cond_dist = c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
   parametrization = c("intercept", "mean"),
   AR_constraints = NULL,
   mean_constraints = NULL,
@@ -29,10 +29,16 @@ GAfit(
   upper_ar_scale = 1,
   ar_scale2 = 1,
   regime_force_scale = 1,
+  penalized,
+  penalty_params = c(0.05, 0.5),
+  allow_unstab,
   red_criteria = c(0.05, 0.01),
+  bound_by_weights,
   pre_smart_mu_prob = 0,
   to_return = c("alt_ind", "best_ind"),
   minval,
+  fixed_params = NULL,
+  fixed_params_in_smart_mu = TRUE,
   seed = NULL
 )
 }
@@ -84,18 +90,19 @@ See the vignette for more details about the weight functions.}
     values are allowed.}
 }}
 
-\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, or \code{"ind_Student"},
-where the latest is the Student's \eqn{t} distribution with independent components.}
+\item{cond_dist}{specifies the conditional distribution of the model as \code{"Gaussian"}, \code{"Student"}, \code{"ind_Student"},
+or \code{"ind_skewed_t"}, where \code{"ind_Student"} the Student's \eqn{t} distribution with independent components, and
+\code{"ind_skewed_t"} is the skewed \eqn{t} distribution with independent components (see Hansen, 1994).}
 
 \item{parametrization}{\code{"intercept"} or \code{"mean"} determining whether the model is parametrized with intercept
 parameters \eqn{\phi_{m,0}} or regime means \eqn{\mu_{m}}, m=1,...,M.}
 
-\item{AR_constraints}{a size \eqn{(Mpd^2 x q)} constraint matrix \eqn{C} specifying linear constraints
+\item{AR_constraints}{a size \eqn{(Mpd^2 \times q)} constraint matrix \eqn{C} specifying linear constraints
 to the autoregressive parameters. The constraints are of the form
-\eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 x 1),\ m=1,...,M},
-contains the coefficient matrices and \eqn{\psi} \eqn{(q x 1)} contains the related parameters.
+\eqn{(\varphi_{1},...,\varphi_{M}) = C\psi}, where \eqn{\varphi_{m} = (vec(A_{m,1}),...,vec(A_{m,p})) \ (pd^2 \times 1),\ m=1,...,M},
+contains the coefficient matrices and \eqn{\psi} \eqn{(q \times 1)} contains the related parameters.
 For example, to restrict the AR-parameters to be the identical across the regimes, set \eqn{C =}
-[\code{I:...:I}]' \eqn{(Mpd^2 x pd^2)} where \code{I = diag(p*d^2)}.}
+[\code{I:...:I}]' \eqn{(Mpd^2 \times pd^2)} where \code{I = diag(p*d^2)}.}
 
 \item{mean_constraints}{Restrict the mean parameters of some regimes to be identical? Provide a list of numeric vectors
 such that each numeric vector contains the regimes that should share the common mean parameters. For instance, if
@@ -108,8 +115,8 @@ that is, when \code{parametrization="mean"}.}
 specifying linear constraints on the transition weight parameters \eqn{\alpha}.
 The constraints are of the form \eqn{\alpha = R\xi + r}, where \eqn{R} is a known \eqn{(a\times l)}
 constraint matrix of full column rank (\eqn{a} is the dimension of \eqn{\alpha}), \eqn{r} is a known \eqn{(a\times 1)} constant,
-and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} in order to constrain the
-the weight parameter to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).}
+and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} to constrain the
+weight parameters to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).}
 
 \item{ngen}{a positive integer specifying the number of generations to be ran through in
 the genetic algorithm.}
@@ -123,26 +130,28 @@ close (or partially close) to the best fitting individual (which has the least r
 mixing weights practically at zero) so far.}
 
 \item{initpop}{a list of parameter vectors from which the initial population of the genetic algorithm
-will be generated from. The parameter vectors should have the form
-\eqn{\theta = (\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\sigma,\alpha,\nu)},
-where
+will be generated from. The parameter vectors hould have the form
+\eqn{\theta = (\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\sigma,\alpha,\nu)}, where (see exceptions below):
 \itemize{
   \item{\eqn{\phi_{m,0} = } the \eqn{(d \times 1)} intercept (or mean) vector of the \eqn{m}th regime.}
   \item{\eqn{\varphi_m = (vec(A_{m,1}),...,vec(A_{m,p}))} \eqn{(pd^2 \times 1)}.}
   \item{\describe{
     \item{if \code{cond_dist="Gaussian"} or \code{"Student"}:}{\eqn{\sigma = (vech(\Omega_1),...,vech(\Omega_M))}
       \eqn{(Md(d + 1)/2 \times 1)}.}
-    \item{if \code{cond_dist="ind_Student"}:}{\eqn{\sigma = (vec(B_1),...,vec(B_M)} \eqn{(Md^2 \times 1)}.}
+    \item{if \code{cond_dist="ind_Student"} or \code{"ind_skewed_t"}:}{\eqn{\sigma = (vec(B_1),...,vec(B_M)} \eqn{(Md^2 \times 1)}.}
     }
   }
-  \item{\eqn{\alpha} contains the transition weights parameters (see below)}
+  \item{\eqn{\alpha = } the \eqn{(a\times 1)} vector containing the transition weight parameters (see below).}
   \item{\describe{
     \item{if \code{cond_dist = "Gaussian")}:}{Omit \eqn{\nu} from the parameter vector.}
     \item{if \code{cond_dist="Student"}:}{\eqn{\nu > 2} is the single degrees of freedom parameter.}
-    \item{if \code{cond_dist="ind_Student"}:}{\eqn{\nu = (\nu_1,...,\nu_M)} \eqn{(M \times 1)}, \eqn{nu_m > 2}.}
+    \item{if \code{cond_dist="ind_Student"}:}{\eqn{\nu = (\nu_1,...,\nu_d)} \eqn{(d \times 1)}, \eqn{\nu_i > 2}.}
+    \item{if \code{cond_dist="ind_skewed_t"}:}{\eqn{\nu = (\nu_1,...,\nu_d,\lambda_1,...,\lambda_d)} \eqn{(2d \times 1)},
+     \eqn{\nu_i > 2} and \eqn{\lambda_i \in (0, 1)}.}
     }
   }
 }
+For models with...
 \describe{
   \item{\code{weight_function="relative_dens"}:}{\eqn{\alpha = (\alpha_1,...,\alpha_{M-1})}
         \eqn{(M - 1 \times 1)}, where \eqn{\alpha_m} \eqn{(1\times 1), m=1,...,M-1} are the transition weight parameters.}
@@ -173,9 +182,7 @@ is the invertible \eqn{(d\times d)} impact matrix of the \eqn{m}th regime. \eqn{
 of the \eqn{m}th regime.
 If \code{parametrization=="mean"}, just replace each \eqn{\phi_{m,0}} with regimewise mean \eqn{\mu_{m}}.
 \eqn{vec()} is vectorization operator that stacks columns of a given matrix into a vector. \eqn{vech()} stacks columns
-of a given matrix from the principal diagonal downwards (including elements on the diagonal) into a vector. \eqn{Bvec()}
-is a vectorization operator that stacks the columns of a given impact matrix \eqn{B_m} into a vector so that the elements
-that are constrained to zero by the argument \code{B_constraints} are excluded.}
+of a given matrix from the principal diagonal downwards (including elements on the diagonal) into a vector.}
 
 \item{mu_scale}{a size \eqn{(dx1)} vector defining \strong{means} of the normal distributions from which each
 mean parameter \eqn{\mu_{m}} is drawn from in random mutations. Default is \code{colMeans(data)}. Note that
@@ -242,11 +249,27 @@ the population and the algorithm might converge poorly. Default is \code{1} and 
 probability weights for individuals with no wasted regimes compared to individuals with one wasted regime.
 Number \code{2} would give \eqn{3x} larger probability weights etc.}
 
+\item{penalized}{Perform penalized LS estimation that minimizes penalized RSS in which estimates close to breaking or not satisfying the
+usual stability condition are penalized? If \code{TRUE}, the tuning parameter is set by the argument \code{penalty_params[2]},
+and the penalization starts when the eigenvalues of the companion form AR matrix are larger than \code{1 - penalty_params[1]}.}
+
+\item{penalty_params}{a numeric vector with two positive elements specifying the penalization parameters:
+the first element determined how far from the boundary of the stability region the penalization starts
+(a number between zero and one, smaller number starts penalization closer to the boundary) and the second element
+is a tuning parameter for the penalization (a positive real number, a higher value penalizes non-stability more).}
+
+\item{allow_unstab}{If \code{TRUE}, estimates not satisfying the stability condition are allowed. Always \code{FALSE} if
+\code{weight_function="relative_dens"}.}
+
 \item{red_criteria}{a length 2 numeric vector specifying the criteria that is used to determine whether a regime is
 redundant (or "wasted") or not.
 Any regime \code{m} which satisfies \code{sum(transitionWeights[,m] > red_criteria[1]) < red_criteria[2]*n_obs} will
 be considered "redundant". One should be careful when adjusting this argument (set \code{c(0, 0)} to fully disable
 the 'redundant regime' features from the algorithm).}
+
+\item{bound_by_weights}{should the parameter space be constrained to areas where the transition weights do allocate
+enough weights to each regime compared to the number of observations in the regime? See the source code of
+the function \code{loglikelihood} for details.}
 
 \item{pre_smart_mu_prob}{A number in \eqn{[0,1]} giving a probability of a "smart mutation" occuring randomly in each
 iteration before the iteration given by the argument \code{smart_mu}.}
@@ -259,6 +282,28 @@ in general (\code{"best_ind"}) but might have more wasted regimes?}
 Values smaller than this will be treated as they were \code{minval} and the corresponding individuals will
 never survive. The default is \code{-(10^(ceiling(log10(n_obs)) + d) - 1)}.}
 
+\item{fixed_params}{a vector containing fixed parameter values for intercept, autoregressive, and weight parameters
+that should be fixed in the \strong{initial population}. Should have the form:
+\eqn{(\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\alpha}, where
+\itemize{
+  \item{\eqn{(\phi_{m,0} = } the \eqn{(d \times 1)} intercept vector of the \eqn{m}th regime.}
+  \item{\eqn{\varphi_m = (vec(A_{m,1}),...,vec(A_{m,p}))} \eqn{(pd^2 \times 1)}.}
+  \item{\eqn{\alpha} vector of the weight parameters.}
+}
+For models with...
+\describe{
+  \item{AR_constraints:}{Replace \eqn{\varphi_1,...,\varphi_M} with \eqn{\psi} as described in the argument \code{AR_constraints}.}
+  \item{weight_constraints:}{If linear constraints are imposed, replace \eqn{\alpha} with \eqn{\xi} as described in the
+   argument \code{weigh_constraints}. If weight functions parameters are imposed to be fixed values, simply drop \eqn{\alpha}
+   from the parameter vector.}
+}
+Note that \code{fixed_params} should always be in the intercept parametrization (and \code{parametrization="intercept"} should always be used).
+\strong{Passing this argument from fitSTVAR in does not do anything, as it is designed to be used with the three-phase estimation
+        procedure only. Also, this argument does not do anything if the initial population is specified in the argument initpop.}}
+
+\item{fixed_params_in_smart_mu}{should the fixed parameters be fixed in the smart mutation phase as well? If \code{TRUE}, the fixed
+parameters stay fixed throughout the whole GA estimation.}
+
 \item{seed}{a single value, interpreted as an integer, or NULL, that sets seed for the random number generator in
 the beginning of the function call. If calling \code{GAfit} from \code{fitSTVAR}, use the argument \code{seeds}
 instead of passing the argument \code{seed}.}
@@ -266,14 +311,14 @@ instead of passing the argument \code{seed}.}
 \value{
 Returns the estimated parameter vector which has the form described in \code{initpop},
  \strong{with the exception} that for models with \code{cond_dist == "ind_Student"} or
- \code{identification="non-Gaussianity"}, the parameter vector is parametrized with \eqn{B_1,B_2^*,...,B_M^*}
+ \code{"ind_skewed_t"}, the parameter vector is parametrized with \eqn{B_1,B_2^*,...,B_M^*}
  instead of  \eqn{B_1,B_2,...,B_M}, where \eqn{B_m^* = B_m - B_1}. Use the function \code{change_parametrization}
  to change back to the original parametrization if desired.
 }
 \description{
-\code{GAfit} estimates the specified STVAR model using a genetic algorithm.
-  It is designed to find starting values for gradient based methods and NOT to obtain
-  final estimates constituting a local maximum.
+\code{GAfit} estimates the specified reduced form STVAR model using a genetic algorithm.
+  It is designed to find starting values for gradient based methods and NOT to obtain final estimates
+  constituting a local maximum.
 }
 \details{
 Only reduced form models are supported!

@@ -72,17 +72,18 @@ stab_conds_satisfied <- function(p, M, d, params, all_boldA=NULL, tolerance=1e-3
 
 in_paramspace <- function(p, M, d, params,
                           weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
-                          weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student"),
+                          weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
                           identification=c("reduced_form", "recursive", "heteroskedasticity", "non-Gaussianity"),
                           B_constraints=NULL, other_constraints=NULL, all_boldA, all_Omegas, weightpars, distpars,
-                          transition_weights, stab_tol=1e-3, posdef_tol=1e-8, distpar_tol=1e-8, weightpar_tol=1e-8) {
+                          transition_weights, allow_unstab=FALSE, stab_tol=1e-3, posdef_tol=1e-8, distpar_tol=1e-8,
+                          weightpar_tol=1e-8) {
   # in_paramspace is internal function that always takes in non-constrained reduced form parameter vector
   # Reform the parameter vectors before checking with in_paramspace
   weight_function <- match.arg(weight_function)
   cond_dist <- match.arg(cond_dist)
   identification <- match.arg(identification)
 
-  # Check distribution parameters
+  # Check distribution parameters (no distpars to check for Gaussian models)
   if(cond_dist == "Student") {
     if(distpars <= 2 + distpar_tol) {
       return(FALSE)
@@ -91,7 +92,14 @@ in_paramspace <- function(p, M, d, params,
     if(any(distpars <= 2 + distpar_tol)) {
       return(FALSE)
     }
+  } else if(cond_dist == "ind_skewed_t") {
+    if(any(distpars[1:d] <= 2 + distpar_tol)) {
+      return(FALSE)
+    } else if(any(abs(distpars[(d + 1):(2*d)]) > 1 - distpar_tol)) {
+      return(FALSE)
+    }
   }
+
 
   # Check weight_function parameters
   if(weight_function == "relative_dens") {
@@ -115,7 +123,7 @@ in_paramspace <- function(p, M, d, params,
   }
 
   # Check stability conditions of a linear VAR
-  if(!stab_conds_satisfied(p=p, M=M, d=d, all_boldA=all_boldA, tolerance=stab_tol)) {
+  if(!allow_unstab && !stab_conds_satisfied(p=p, M=M, d=d, all_boldA=all_boldA, tolerance=stab_tol)) {
     return(FALSE)
   }
 
@@ -142,7 +150,7 @@ in_paramspace <- function(p, M, d, params,
   }
   # Check that sign constraints in B_constraints are satisfied, if imposed
   if(!is.null(B_constraints)) {
-    if(identification == "non-Gaussianity" || cond_dist == "ind_Student") {
+    if(identification == "non-Gaussianity" || cond_dist == "ind_Student" || cond_dist == "ind_skewed_t") {
       for(m in 1:M) {
         if(any(all_Omegas[, , m][B_constraints > 0] <= 0, na.rm=TRUE) || any(all_Omegas[B_constraints < 0] >= 0, na.rm=TRUE)) {
           return(FALSE)
@@ -156,7 +164,7 @@ in_paramspace <- function(p, M, d, params,
     }
   }
   # Check other constraints if applied
-  if(identification == "non-Gaussianity" || cond_dist == "ind_Student") {
+  if(identification == "non-Gaussianity" || cond_dist == "ind_Student" || cond_dist == "ind_skewed_t") {
     if(!is.null(other_constraints$B1_constraints)) {
       # The first non-zero entry in each column of B_1 is constrained strictly positive and they
       # are constrained to be in a decreasing ordering.
@@ -198,11 +206,13 @@ in_paramspace <- function(p, M, d, params,
 #'  try(check_params(p=1, M=1, d=2, params=params112_wronglength))
 #' @export
 
-check_params <- function(data, p, M, d, params, weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
-                         weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student"), parametrization=c("intercept", "mean"),
+check_params <- function(data, p, M, d, params,
+                         weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
+                         weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
+                         parametrization=c("intercept", "mean"),
                          identification=c("reduced_form", "recursive", "heteroskedasticity", "non-Gaussianity"),
                          AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL, B_constraints=NULL, transition_weights,
-                         stab_tol=1e-3, posdef_tol=1e-8, distpar_tol=1e-8, weightpar_tol=1e-8) {
+                         allow_unstab=FALSE, stab_tol=1e-3, posdef_tol=1e-8, distpar_tol=1e-8, weightpar_tol=1e-8) {
   weight_function <- match.arg(weight_function)
   cond_dist <- match.arg(cond_dist)
   parametrization <- match.arg(parametrization)
@@ -241,7 +251,7 @@ check_params <- function(data, p, M, d, params, weight_function=c("relative_dens
     if(any(lambdas <= 0)) {
       stop("The eigenvalues 'lambdas' should be strictly positive")
     }
-  } else if(identification == "non-Gaussianity" || cond_dist == "ind_Student") { # Check B matrices
+  } else if(identification == "non-Gaussianity" || cond_dist == "ind_Student" || cond_dist == "ind_skewed_t") { # Check B matrices
     for(i1 in 1:M) {
       if(any(all_Omegas[, , i1][B_constraints == 0] != 0, na.rm=TRUE)) {
         stop(paste0("The impact matrix of Regime ", i1, " doesn't satisfy the zero constraints in B_constraints"))
@@ -268,6 +278,12 @@ check_params <- function(data, p, M, d, params, weight_function=c("relative_dens
     if(any(distpars <= 2 + distpar_tol)) {
       stop("The degrees of freedom parameters need to be strictly larger than two (with large enough numerical tolerance)!")
     }
+  } else if(cond_dist == "ind_skewed_t") {
+    if(any(distpars[1:d] <= 2 + distpar_tol)) {
+      stop("The degrees of freedom parameters need to be strictly larger than two (with large enough numerical tolerance)!")
+    } else if(any(abs(distpars[(d + 1):(2*d)]) > 1 - distpar_tol)) {
+      stop("The skewness parameters need to be in the interval (-1, 1) (with large enough numerical tolerance)!")
+    }
   }
   if(weight_function == "relative_dens") {
     if(M >= 2 & sum(weightpars[-M]) >= 1) {
@@ -289,11 +305,10 @@ check_params <- function(data, p, M, d, params, weight_function=c("relative_dens
   } else if(weight_function == "exogenous") {
     # No weightpars to test
   }
-  if(!stab_conds_satisfied(p=p, M=M, d=d, all_boldA=all_boldA, tolerance=stab_tol)) {
+  if(!allow_unstab && !stab_conds_satisfied(p=p, M=M, d=d, all_boldA=all_boldA, tolerance=stab_tol)) {
     stop("At least one of the regimes does not satisfy the stability condition (with large enough numerical tolerance)!")
   }
-
-  if(cond_dist != "ind_Student" && identification != "non-Gaussianity") {
+  if(cond_dist != "ind_Student" && cond_dist != "ind_skewed_t" && identification != "non-Gaussianity") {
     for(m in 1:M) {
       if(any(eigen(all_Omegas[, , m], symmetric=TRUE, only.values=TRUE)$values < posdef_tol)) {
         stop(paste0("The conditional covariance matrix of Regime ", m,
@@ -390,7 +405,7 @@ check_data <- function(data, p) {
 #' @keywords internal
 
 n_params <- function(p, M, d, weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
-                     weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student"),
+                     weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
                      identification=c("reduced_form", "recursive", "heteroskedasticity", "non-Gaussianity"),
                      AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL, B_constraints=NULL) {
   weight_function <- match.arg(weight_function)
@@ -410,7 +425,7 @@ n_params <- function(p, M, d, weight_function=c("relative_dens", "logistic", "ml
   }
 
   # Covmat pars
-  if(identification == "non-Gaussianity" || cond_dist == "ind_Student") { # impact matrices parametrized directly
+  if(identification == "non-Gaussianity" || cond_dist == "ind_Student" || cond_dist == "ind_skewed_t") { # impact matrices parametrized
     if(is.null(B_constraints)) {
       n_zeros <- 0
     } else {
@@ -454,8 +469,10 @@ n_params <- function(p, M, d, weight_function=c("relative_dens", "logistic", "ml
     n_dist_pars <- 0
   } else if(cond_dist == "Student") {
     n_dist_pars <- 1 # degrees of freedom param
-  } else { # cond_dist == "ind_Student"
+  } else if(cond_dist == "ind_Student") {
     n_dist_pars <- d # Degrees of freedom for each component
+  } else if(cond_dist == "ind_skewed_t") {
+    n_dist_pars <- 2*d # Degrees of freedom and skewness parameters
   }
 
   n_mean_pars + n_ar_pars + n_covmat_pars + n_weight_pars + n_dist_pars
@@ -471,7 +488,8 @@ n_params <- function(p, M, d, weight_function=c("relative_dens", "logistic", "ml
 #' @return Does return anything but checks the constraints and throws an error if something is wrong.
 #' @keywords internal
 
-check_constraints <- function(data, p, M, d, weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
+check_constraints <- function(data, p, M, d,
+                              weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
                               weightfun_pars=NULL, parametrization=c("intercept", "mean"),
                               identification=c("reduced_form", "recursive", "heteroskedasticity", "non-Gaussianity"),
                               AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL, B_constraints=NULL) {
@@ -542,6 +560,19 @@ check_constraints <- function(data, p, M, d, weight_function=c("relative_dens", 
         } else if(qr(weight_constraints[[1]])$rank != ncol(weight_constraints[[1]])) {
           stop("The first element of weight_constraints (matrix R) should have full column rank (or it should equal to zero).")
         }
+      } else {
+        # R is a matrix of zeros, so it should only be the constant zero
+        if(is.matrix(weight_constraints[[1]])) {
+          if(nrow(weight_constraints[[1]]) != 1 || ncol(weight_constraints[[1]]) != 1) {
+            stop(paste("The constraints matrix R in the first element of weight_constraints is matrix of zeros,",
+                       "so it should be the scalar zero."))
+          }
+        } else {
+          if(!is.numeric(weight_constraints[[1]]) || length(weight_constraints[[1]]) != 1) {
+            stop(paste("The constraints matrix R in the should be the scalar zero when constraining the weight parameters,",
+                       "to fixed values."))
+          }
+        }
       }
       # Check r
       if(!is.numeric(weight_constraints[[2]]) || !is.vector(weight_constraints[[2]])) {
@@ -604,8 +635,9 @@ check_constraints <- function(data, p, M, d, weight_function=c("relative_dens", 
 #'   a corrected version of the argument if possible.
 #' @keywords internal
 
-check_weightfun_pars <- function(data, p, M, d, weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
-                                 weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student")) {
+check_weightfun_pars <- function(data, p, M, d,
+                                 weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
+                                 weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t")) {
   weight_function <- match.arg(weight_function)
   cond_dist <- match.arg(cond_dist)
 
@@ -652,7 +684,8 @@ check_weightfun_pars <- function(data, p, M, d, weight_function=c("relative_dens
   } else if(weight_function == "exogenous") {
     if(missing(data) || is.null(data)) { # Does not check data
       if(!is.numeric(weightfun_pars) || !is.matrix(weightfun_pars) || ncol(weightfun_pars) != M) {
-        stop("When weight_function == 'exogenous' and there is no data, the argument weightfun_pars should be a numeric matrix with M columns.")
+        stop(paste("When weight_function == 'exogenous' and there is no data,",
+                   "the argument weightfun_pars should be a numeric matrix with M columns."))
       }
     } else {
       if(!is.numeric(weightfun_pars) || !is.matrix(weightfun_pars) || ncol(weightfun_pars) != M || nrow(weightfun_pars) != nrow(data) - p) {
