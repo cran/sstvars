@@ -20,6 +20,7 @@ fitSTVAR(
   penalized,
   penalty_params = c(0.05, 0.2),
   allow_unstab,
+  min_obs_coef = 3,
   nrounds,
   ncores = 2,
   maxit = 1000,
@@ -121,6 +122,9 @@ is a tuning parameter for the penalization (a positive real number, a higher val
 
 \item{allow_unstab}{If \code{TRUE}, estimates not satisfying the stability condition are allowed. Always \code{FALSE} if
 \code{weight_function="relative_dens"}.}
+
+\item{min_obs_coef}{In the LS/NLS step of the three phase estimation, the smallest accepted number of observations
+(times variables) from each regime relative to the number of parameters in the regime.}
 
 \item{nrounds}{the number of estimation rounds that should be performed. The default is \code{(M*ncol(data))^3}
 when \code{estim_method="two-phase"} and \code{(M*ncol(data))^2} when \code{estim_method="three-phase"}.}
@@ -264,7 +268,7 @@ get_foc(fit32) # Gradient of the log-likelihood function about the estimate
 get_soc(fit32) # Eigenvalues of the Hessian of the log-lik. fn. about the estimate
 profile_logliks(fit32) # Profile log-likelihood functions about the estimate
 
-# Estimate a two-regime Student's t STVAR p=3 model with logistic transition weights
+# Estimate a two-regime Student's t STVAR p=5 model with logistic transition weights
 # and the first lag of the second variable as the switching variable, only two
 # estimation rounds using two CPU cores (three-phase estimation):
 fitlogistict32 <- fitSTVAR(gdpdef, p=3, M=2, weight_function="logistic", weightfun_pars=c(2, 1),
