@@ -213,6 +213,10 @@ fitSTVAR <- function(data, p, M, weight_function=c("relative_dens", "logistic", 
   weight_function <- match.arg(weight_function)
   cond_dist <- match.arg(cond_dist)
   parametrization <- match.arg(parametrization)
+  if(weight_function == "relative_dens" && M == 1) { # Use threshold weights for a linear model, so enable all appropriate features
+    weight_function <- "threshold"
+    weightfun_pars <- c(1, 1)
+  }
   if(missing(estim_method)) { # Determine the estimation method
     if(weight_function != "relative_dens" && is.null(mean_constraints)) {
       if(is.null(weight_constraints)) {
@@ -575,7 +579,7 @@ fitSTVAR <- function(data, p, M, weight_function=c("relative_dens", "logistic", 
     tmpfunNE <- function(i1) {
       if(!no_prints) message(i1, "/", nrounds, "\r")
       optim(par=GAresults[[i1]], fn=loglik_fn,  gr=loglik_grad,
-            method="BFGS", control=list(fnscale=-1, maxit=maxit, trace=6))
+            method="BFGS", control=list(fnscale=-1, maxit=maxit))
     }
     NEWTONresults <- lapply(1:nrounds, function(i1) tmpfunNE(i1))
   }
@@ -656,7 +660,7 @@ fitSTVAR <- function(data, p, M, weight_function=c("relative_dens", "logistic", 
     if(Omegas_ok && stat_ok && tweights_ok && weightpars_ok) {
       which_best_fit <- which_round # The estimation round of the appropriate estimate with the largest loglik
       if(!no_prints) message(paste0("Filtered through ", i1-1, " inappropriate ", ifelse(allow_unstab, "(or unstable)", ""),
-                                   " estimates with a larger log-likelihood"))
+                                    " estimates with a larger", ifelse(penalized, " (penalized) ", " "), "log-likelihood"))
       break
     }
     if(i1 == length(all_estimates)) {
@@ -723,7 +727,6 @@ fitSTVAR <- function(data, p, M, weight_function=c("relative_dens", "logistic", 
   }
 
   ### Wrap up ###
-  if(!no_prints) message("Calculating approximate standard errors...")
   ret <- STVAR(data=data, p=p, M=M, d=d, params=params,
                weight_function=weight_function,
                weightfun_pars=weightfun_pars,

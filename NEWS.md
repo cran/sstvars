@@ -48,3 +48,16 @@
 * Now alt_stvar, iterate_more, and filter_estimates retain LS_estimates if the original model contains them. 
 * Now summary printout of class sstvar objects tells if the log-likelihood function is penalized. 
 * Fixed CRAN check issues. 
+
+# sstvars 1.1.2
+
+* A new feature in GFEVD: initval_type = "data" and use_data_shocks = TRUE now allows to filter the histories based on the dominance of
+  a specific regime.
+* A new feature in GIRF: use_data_shocks, which allows to estimate the GIRF using the length p histories in the data, using the shocks recovered
+  from the fitted model, with the possibility to filter the histories based on the dominance of a specific regime as well as on the sign and
+  size of the shocks.
+* GFEVDs are now calculated as the average over the GFEVDs based on the different initial values (previously calculated based on the average of the GIRFs
+  based on the different initial values).
+* Fixed the function stvar_to_sstvars110.
+* Fixed a bug that caused GFEVD with data shocks to result in error when using model estimate with package versions <1.1.0.
+* Various small adjustments to printouts, documentation, etc. 

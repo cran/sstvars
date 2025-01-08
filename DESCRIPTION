@@ -2,7 +2,7 @@ Package: sstvars
 Type: Package
 Title: Toolkit for Reduced Form and Structural Smooth Transition Vector
         Autoregressive Models
-Version: 1.1.1
+Version: 1.1.2
 Authors@R: person("Savi", "Virolainen", email = "savi.virolainen@helsinki.fi",
                   role = c("aut", "cre"), comment = c(ORCID = "0000-0002-5075-6821"))
 Maintainer: Savi Virolainen <savi.virolainen@helsinki.fi>
@@ -32,7 +32,7 @@ Imports: Rcpp (>= 1.0.0), RcppArmadillo (>= 0.12.0.0.0), parallel (>=
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 NeedsCompilation: yes
-Packaged: 2024-12-07 12:43:33 UTC; savi
+Packaged: 2025-01-04 08:56:24 UTC; savi
 Author: Savi Virolainen [aut, cre] (<https://orcid.org/0000-0002-5075-6821>)
 Repository: CRAN
-Date/Publication: 2024-12-07 13:30:04 UTC
+Date/Publication: 2025-01-08 05:00:02 UTC
