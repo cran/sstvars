@@ -21,6 +21,7 @@ fitSTVAR(
   penalty_params = c(0.05, 0.2),
   allow_unstab,
   min_obs_coef = 3,
+  sparse_grid = FALSE,
   nrounds,
   ncores = 2,
   maxit = 2000,
@@ -124,7 +125,10 @@ is a tuning parameter for the penalization (a positive real number, a higher val
 \code{weight_function="relative_dens"}.}
 
 \item{min_obs_coef}{In the LS/NLS step of the three phase estimation, the smallest accepted number of observations
-(times variables) from each regime relative to the number of parameters in the regime.}
+(times variables) from each regime relative to the number of parameters in the regime. For models with AR constraints,
+the number of AR matrix parameters in each regimes is simplisticly assumed to be \code{ncol(AR_constraints)/M}.}
+
+\item{sparse_grid}{should the grid of weight function values in LS/NLS estimation be more sparse (speeding up the estimation)?}
 
 \item{nrounds}{the number of estimation rounds that should be performed. The default is \code{(M*ncol(data))^3}
 when \code{estim_method="two-phase"} and \code{(M*ncol(data))^2} when \code{estim_method="three-phase"}.}
@@ -166,6 +170,7 @@ Returns an S3 object of class \code{'stvar'} defining a smooth transition VAR mo
    \item{all_logliks}{The log-likelihood of the estimates from all estimation rounds, if applicable.}
    \item{which_converged}{Indicators of which estimation rounds converged, if applicable.}
    \item{which_round}{Indicators of which round of optimization each estimate belongs to, if applicable.}
+   \item{seeds}{The seeds used in the estimation in \code{fitSTVAR}, if applicable.}
    \item{LS_estimates}{The least squares estimates of the parameters in the form
      \eqn{(\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\alpha} (intercepts replaced by unconditional means
      if mean parametrization is used), if applicable.}
@@ -339,15 +344,14 @@ plot(fitlogistic32w) # Plot the fitted transition weights
      \emph{Journal of Econometrics}, \strong{84}:1, 1-36.
    \item Hubrich K., Teräsvirta. T. 2013. Thresholds and Smooth Transitions in Vector Autoregressive Models.
      \emph{CREATES Research Paper 2013-18, Aarhus University.}
-   \item Koivisto T., Luoto J., Virolainen S. 2025. Unpublished working paper.
-   \item Lanne M., Virolainen S. 2024. A Gaussian smooth transition vector autoregressive model:
+   \item Lanne M., Virolainen S. 2025. A Gaussian smooth transition vector autoregressive model:
       An application to the macroeconomic effects of severe weather shocks. Unpublished working
       paper, available as arXiv:2403.14216.
    \item Kheifets I.L., Saikkonen P.J. 2020. Stationarity and ergodicity of Vector STAR models.
      \emph{Econometric Reviews}, \strong{39}:4, 407-414.
    \item Tsay R. 1998. Testing and Modeling Multivariate Threshold Models.
      \emph{Journal of the American Statistical Association}, \strong{93}:443, 1188-1202.
-   \item Virolainen S. 2024. Identification by non-Gaussianity in structural threshold and
+   \item Virolainen S. 2025. Identification by non-Gaussianity in structural threshold and
       smooth transition vector autoregressive models. Unpublished working
       paper, available as arXiv:2404.19707.
  }

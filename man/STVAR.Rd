@@ -257,6 +257,7 @@ Returns an S3 object of class \code{'stvar'} defining a smooth transition VAR mo
    \item{all_logliks}{The log-likelihood of the estimates from all estimation rounds, if applicable.}
    \item{which_converged}{Indicators of which estimation rounds converged, if applicable.}
    \item{which_round}{Indicators of which round of optimization each estimate belongs to, if applicable.}
+   \item{seeds}{The seeds used in the estimation in \code{fitSTVAR}, if applicable.}
    \item{LS_estimates}{The least squares estimates of the parameters in the form
      \eqn{(\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\alpha} (intercepts replaced by unconditional means
      if mean parametrization is used), if applicable.}
@@ -354,7 +355,7 @@ summary(mod112) # Summary printout
      \emph{Journal of Econometrics}, \strong{84}:1, 1-36.
    \item Hubrich K., Teräsvirta. T. 2013. Thresholds and Smooth Transitions in Vector Autoregressive Models.
      \emph{CREATES Research Paper 2013-18, Aarhus University.}
-   \item Lanne M., Virolainen S. 2024. A Gaussian smooth transition vector autoregressive model:
+   \item Lanne M., Virolainen S. 2025. A Gaussian smooth transition vector autoregressive model:
       An application to the macroeconomic effects of severe weather shocks. Unpublished working
       paper, available as arXiv:2403.14216.
    \item Kheifets I.L., Saikkonen P.J. 2020. Stationarity and ergodicity of Vector STAR models.
@@ -363,7 +364,7 @@ summary(mod112) # Summary printout
      \emph{Journal of Economic Dynamics & Control}, \strong{84}, 43-57.
    \item Tsay R. 1998. Testing and Modeling Multivariate Threshold Models.
      \emph{Journal of the American Statistical Association}, \strong{93}:443, 1188-1202.
-   \item Virolainen S. 2024. Identification by non-Gaussianity in structural threshold and
+   \item Virolainen S. 2025. Identification by non-Gaussianity in structural threshold and
       smooth transition vector autoregressive models. Unpublished working
       paper, available as arXiv:2404.19707.
  }

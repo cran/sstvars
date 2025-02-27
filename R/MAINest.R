@@ -15,7 +15,9 @@
 #'   (a number between zero and one, smaller number starts penalization closer to the boundary) and the second element
 #'   is a tuning parameter for the penalization (a positive real number, a higher value penalizes non-stability more).
 #' @param min_obs_coef In the LS/NLS step of the three phase estimation, the smallest accepted number of observations
-#'   (times variables) from each regime relative to the number of parameters in the regime.
+#'   (times variables) from each regime relative to the number of parameters in the regime. For models with AR constraints,
+#'   the number of AR matrix parameters in each regimes is simplisticly assumed to be \code{ncol(AR_constraints)/M}.
+#' @param sparse_grid should the grid of weight function values in LS/NLS estimation be more sparse (speeding up the estimation)?
 #' @param nrounds the number of estimation rounds that should be performed. The default is \code{(M*ncol(data))^3}
 #'   when \code{estim_method="two-phase"} and \code{(M*ncol(data))^2} when \code{estim_method="three-phase"}.
 #' @param ncores the number CPU cores to be used in parallel computing.
@@ -100,15 +102,14 @@
 #'      \emph{Journal of Econometrics}, \strong{84}:1, 1-36.
 #'    \item Hubrich K., Teräsvirta. T. 2013. Thresholds and Smooth Transitions in Vector Autoregressive Models.
 #'      \emph{CREATES Research Paper 2013-18, Aarhus University.}
-#'    \item Koivisto T., Luoto J., Virolainen S. 2025. Unpublished working paper.
-#'    \item Lanne M., Virolainen S. 2024. A Gaussian smooth transition vector autoregressive model:
+#'    \item Lanne M., Virolainen S. 2025. A Gaussian smooth transition vector autoregressive model:
 #'       An application to the macroeconomic effects of severe weather shocks. Unpublished working
 #'       paper, available as arXiv:2403.14216.
 #'    \item Kheifets I.L., Saikkonen P.J. 2020. Stationarity and ergodicity of Vector STAR models.
 #'      \emph{Econometric Reviews}, \strong{39}:4, 407-414.
 #'    \item Tsay R. 1998. Testing and Modeling Multivariate Threshold Models.
 #'      \emph{Journal of the American Statistical Association}, \strong{93}:443, 1188-1202.
-#'    \item Virolainen S. 2024. Identification by non-Gaussianity in structural threshold and
+#'    \item Virolainen S. 2025. Identification by non-Gaussianity in structural threshold and
 #'       smooth transition vector autoregressive models. Unpublished working
 #'       paper, available as arXiv:2404.19707.
 #'  }
@@ -207,8 +208,8 @@
 fitSTVAR <- function(data, p, M, weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
                      weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
                      parametrization=c("intercept", "mean"), AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL,
-                     estim_method, penalized, penalty_params=c(0.05, 0.2), allow_unstab, min_obs_coef=3, nrounds, ncores=2, maxit=2000, seeds=NULL,
-                     print_res=TRUE, use_parallel=TRUE, calc_std_errors=TRUE, ...) {
+                     estim_method, penalized, penalty_params=c(0.05, 0.2), allow_unstab, min_obs_coef=3, sparse_grid=FALSE,
+                     nrounds, ncores=2, maxit=2000, seeds=NULL, print_res=TRUE, use_parallel=TRUE, calc_std_errors=TRUE, ...) {
   # Initial checks etc
   weight_function <- match.arg(weight_function)
   cond_dist <- match.arg(cond_dist)
@@ -333,14 +334,14 @@ fitSTVAR <- function(data, p, M, weight_function=c("relative_dens", "logistic", 
       LS_results <- estim_LS(data=data, p=p, M=M, weight_function=weight_function, weightfun_pars=weightfun_pars,
                              cond_dist=cond_dist, parametrization="intercept", AR_constraints=AR_constraints,
                              mean_constraints=mean_constraints, weight_constraints=weight_constraints,
-                             penalized=penalized, penalty_params=penalty_params,
-                             ncores=ncores, use_parallel=use_parallel) # Always intercept parametrization used here
+                             penalized=penalized, penalty_params=penalty_params, min_obs_coef=min_obs_coef,
+                             sparse_grid=sparse_grid, ncores=ncores, use_parallel=use_parallel) # Always intercept parametrization used here
     } else { # Use nonlinear least squares
       LS_results <- estim_NLS(data=data, p=p, M=M, weight_function=weight_function, weightfun_pars=weightfun_pars,
                               cond_dist=cond_dist, parametrization="intercept", AR_constraints=AR_constraints,
                               mean_constraints=mean_constraints, weight_constraints=weight_constraints,
-                              penalized=penalized, penalty_params=penalty_params,
-                              ncores=ncores, use_parallel=use_parallel) # Always intercept parametrization used here
+                              penalized=penalized, penalty_params=penalty_params, min_obs_coef=min_obs_coef,
+                              sparse_grid=sparse_grid, ncores=ncores, use_parallel=use_parallel) # Always intercept parametrization used here
     }
 
     # Check whether the least squares estimates satisfy the stability condition
@@ -745,6 +746,7 @@ fitSTVAR <- function(data, p, M, weight_function=c("relative_dens", "logistic", 
   ret$all_logliks <- loks
   ret$which_converged <- converged
   ret$which_round <- which_best_fit # Which estimation round induced the largest log-likelihood?
+  ret$seeds <- seeds
   if(estim_method == "three-phase") {
     ret$LS_estimates <- LS_res_to_ret # Least squares estimates (mean or intercept parametrization)
   }

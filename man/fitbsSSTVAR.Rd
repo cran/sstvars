@@ -245,6 +245,7 @@ Returns an S3 object of class \code{'stvar'} defining a smooth transition VAR mo
    \item{all_logliks}{The log-likelihood of the estimates from all estimation rounds, if applicable.}
    \item{which_converged}{Indicators of which estimation rounds converged, if applicable.}
    \item{which_round}{Indicators of which round of optimization each estimate belongs to, if applicable.}
+   \item{seeds}{The seeds used in the estimation in \code{fitSTVAR}, if applicable.}
    \item{LS_estimates}{The least squares estimates of the parameters in the form
      \eqn{(\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\alpha} (intercepts replaced by unconditional means
      if mean parametrization is used), if applicable.}
@@ -269,7 +270,7 @@ Used internally in the functions \code{linear_IRF} for estimating the model in e
    \emph{Cambridge University Press}, Cambridge.
    \item Lütkepohl H., Netšunajev A. 2017. Structural vector autoregressions with smooth transition in variances.
      \emph{Journal of Economic Dynamics & Control}, \strong{84}, 43-57.
-   \item Virolainen S. 2024. Identification by non-Gaussianity in structural threshold and
+   \item Virolainen S. 2025. Identification by non-Gaussianity in structural threshold and
       smooth transition vector autoregressive models. Unpublished working
       paper, available as arXiv:2404.19707.
  }

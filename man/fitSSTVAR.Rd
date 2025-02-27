@@ -81,6 +81,7 @@ Returns an S3 object of class \code{'stvar'} defining a smooth transition VAR mo
    \item{all_logliks}{The log-likelihood of the estimates from all estimation rounds, if applicable.}
    \item{which_converged}{Indicators of which estimation rounds converged, if applicable.}
    \item{which_round}{Indicators of which round of optimization each estimate belongs to, if applicable.}
+   \item{seeds}{The seeds used in the estimation in \code{fitSTVAR}, if applicable.}
    \item{LS_estimates}{The least squares estimates of the parameters in the form
      \eqn{(\phi_{1,0},...,\phi_{M,0},\varphi_1,...,\varphi_M,\alpha} (intercepts replaced by unconditional means
      if mean parametrization is used), if applicable.}
@@ -108,7 +109,7 @@ When the structural model does not impose overidentifying constraints, it is dir
 
   The arguments \code{B_pm_reg}, \code{B_perm}, and \code{B_signs} can be used to explore estimates based various orderings
   and sign changes of the columns of the impact matrices \eqn{B_m} of specific regimes. This can be useful in the presence
-  of weak identification with respect to the ordering or signs of the columns \eqn{B_2,...,B_M} (see Virolainen 2024).
+  of weak identification with respect to the ordering or signs of the columns \eqn{B_2,...,B_M} (see Virolainen 2025).
 }
 \examples{
 \donttest{
@@ -168,7 +169,7 @@ fit12c3 <- fitSSTVAR(fit12c, B_pm_reg=2, B_perm=c(2, 1), B_signs=2)
    \emph{Cambridge University Press}, Cambridge.
    \item Lütkepohl H., Netšunajev A. 2017. Structural vector autoregressions with smooth transition in variances.
      \emph{Journal of Economic Dynamics & Control}, \strong{84}, 43-57.
-   \item Virolainen S. 2024. Identification by non-Gaussianity in structural threshold and
+   \item Virolainen S. 2025. Identification by non-Gaussianity in structural threshold and
       smooth transition vector autoregressive models. Unpublished working
       paper, available as arXiv:2404.19707.
  }
