@@ -28,8 +28,6 @@
 #' @param drop if \code{TRUE} (default) then the components of the returned list are coerced to lower dimension if
 #'  \code{ntimes==1}, i.e., \code{$sample} and \code{$transition_weights} will be matrices, and \code{$component}
 #'   will be vector.
-#' @param girf_pars This argument is used internally in the estimation of generalized impulse response functions
-#'   (see \code{?GIRF}). You should ignore it (specifying something else than null to it will change how the function behaves).
 #' @details When using \code{init_regime} to simulate the initial values from a given regime, we employ the following simulation
 #'   procedure to obtain the initial values (unless \code{use_stat_for_Gaus=TRUE} and Gaussian model is considered).
 #'   First, we set the initial values to the unconditional mean of the specified regime. Then,
@@ -96,11 +94,53 @@
 #' @export
 
 simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, init_regime, ntimes=1, use_stat_for_Gaus=FALSE,
-                           burn_in=1000, exo_weights=NULL, drop=TRUE, girf_pars=NULL) {
+                           burn_in=1000, exo_weights=NULL, drop=TRUE) {
+  simulate_stvar_int(object=object, nsim=nsim, seed=seed, ..., init_values=init_values, init_regime=init_regime, ntimes=ntimes,
+                     use_stat_for_Gaus=use_stat_for_Gaus, burn_in=burn_in, exo_weights=exo_weights, drop=drop)
+}
+
+#' @title INTERNAL Simulate method for class 'stvar' objects
+#'
+#' @description \code{simulate_stvar_int} is an internal simulate function for class 'stvar' objects.
+#'
+#' @inheritParams simulate.stvar
+#' @param girf_pars This argument is used internally in the estimation of generalized impulse response functions.
+#'  Specifying something else than null to it will change how the function behaves. Should be a list with following elements
+#'  \describe{
+#'    \item{shock_numb}{The number of the shock to be used in the GIRF.}
+#'    \item{shock_size}{The size of the shock to be used in the GIRF.}
+#'    \item{cfact_pars}{A list with the following elements (only for simulating counterfactuals):
+#'      \describe{
+#'        \item{cfact_metatype}{The metatype of the counterfactual, \code{c("counterfactual_fore", "counterfactual_girf").}}
+#'        \item{cfact_type}{The type of the counterfactual, \code{c("fixed_path", "muted_response").}}
+#'        \item{policy_var}{The variable to be used as the policy variable.}
+#'        \item{mute_var}{The variable to be used as the mute variable.}
+#'        \item{cfact_start}{The start of the counterfactual period.}
+#'        \item{cfact_end}{The end of the counterfactual period.}
+#'      }
+#'    }
+#'  }
+#' @inherit simulate.stvar references return details seealso
+#' @keywords internal
+simulate_stvar_int <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, init_regime, ntimes=1, use_stat_for_Gaus=FALSE,
+                               burn_in=1000, exo_weights=NULL, drop=TRUE, girf_pars=NULL) {
+  ## girf_pars for GIRF use:
   # girf_pars$shock_numb - which shock?
   # girf_pars$shock_size - size of the structural shock?
   # Returns a size (N+1 x d+M) vector containing the estimated GIRFs for the variables and
   # the transition weights (column d+m for the m:th regime). The first row for response at impact.
+
+  ## girf_pars for counterfactuals (cfact_fore, cfact_girf):
+  # In addition to possibly specigying shock_numb and shock_size:
+  # girf_pars$cfact_pars = a list with the following elements;
+  # see the documentation of the functions cfact_fore and cfact_girf for detailed descriptions
+  # girf_pars$cfact_pars$cfact_metatype - c("counterfactual_fore", "counterfactual_girf") # forecast scerario or GIRF?
+  # girf_pars$cfact_pars$cfact_type - c("fixed_path", "muted_response")
+  # girf_pars$cfact_pars$policy_var - 1,...,d
+  # girf_pars$cfact_pars$mute_var - 1,...,d
+  # girf_pars$cfact_pars$cfact_start - 1,...,nsim
+  # girf_pars$cfact_pars$cfact_end - cfact_start,...,nsim
+  # girf_pars$cfact_pars$cfact_path, vector of length cfact_end-cfact_start+1
 
   # Checks etc
   if(!is.null(seed)) set.seed(seed)
@@ -120,6 +160,15 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
   weight_constraints <- stvar$model$weight_constraints
   B_constraints <- stvar$model$B_constraints
   allow_unstab <- stvar$allow_unstab # Always FALSE with relative_dens weight function
+
+  # Determine whether the function is called to calculate a GIRF (counterfactual or not):
+  calc_girf <- FALSE
+  if(!is.null(girf_pars)) {
+    calc_girf <- TRUE # girf_pars specified, so presumably GIRF is be calculated
+    if(!is.null(girf_pars$cfact_pars) && girf_pars$cfact_pars$cfact_metatype == "counterfactual_fore") {
+      calc_girf <- FALSE # girf_pars specified only to calculate counterfactual forecast scenario
+    }
+  }
 
   # Check the exogenous weights given for simulation
   if(weight_function == "exogenous") {
@@ -182,15 +231,15 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
   if((cond_dist == "Gaussian" && !allow_unstab) || weight_function == "relative_dens") {
     # Initial regime Gaussian stat dist simu + relative_dens weight function uses this;
     # relative dens only has Gaussian cond dist, but it is used in simulate_from_regime with Student cond dist
-     Sigmas <- get_Sigmas(p=p, M=M, d=d, all_A=all_A, all_boldA=all_boldA, all_Omegas=all_Omegas)
-     inv_Sigmas <- array(NA, dim=c(d*p, d*p, M)) # Store inverses of the (dpxdp) covariance matrices
-     det_Sigmas <- numeric(M) # Store determinants of the (dpxdp) covariance matrices
-     chol_Sigmas <- array(dim=c(d*p, d*p, M)) # Cholesky decompositions of the  (dpxdp) covariance matrices
-     for(m in 1:M) {
-       chol_Sigmas[, , m] <- chol(Sigmas[, , m]) # Upper triangle
-       inv_Sigmas[, , m] <- chol2inv(chol_Sigmas[, , m]) # Faster inverse
-       det_Sigmas[m] <- prod(diag(chol_Sigmas[, , m]))^2 # Faster determinant
-     }
+    Sigmas <- get_Sigmas(p=p, M=M, d=d, all_A=all_A, all_boldA=all_boldA, all_Omegas=all_Omegas)
+    inv_Sigmas <- array(NA, dim=c(d*p, d*p, M)) # Store inverses of the (dpxdp) covariance matrices
+    det_Sigmas <- numeric(M) # Store determinants of the (dpxdp) covariance matrices
+    chol_Sigmas <- array(dim=c(d*p, d*p, M)) # Cholesky decompositions of the  (dpxdp) covariance matrices
+    for(m in 1:M) {
+      chol_Sigmas[, , m] <- chol(Sigmas[, , m]) # Upper triangle
+      inv_Sigmas[, , m] <- chol2inv(chol_Sigmas[, , m]) # Faster inverse
+      det_Sigmas[m] <- prod(diag(chol_Sigmas[, , m]))^2 # Faster determinant
+    }
   }
   if(weight_function == "mlogit") {
     all_gamma_m <- matrix(weightpars, ncol=M-1)
@@ -203,7 +252,7 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
   }
 
   # GIRF stuff, particularly for reduced form models, which assume Cholesky identification
-  if(!is.null(girf_pars)) {
+  if(calc_girf) {
     R1 <- girf_pars$R1
     all_Omegas_as_matrix <- t(matrix(all_Omegas, nrow=d^2, ncol=M)) # Used for reduced form model GIRF [,m]
   }
@@ -223,21 +272,33 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
   # Take the last p rows of initial values as the initial values
   init_values <- init_values[(nrow(init_values) - p + 1):nrow(init_values), , drop=FALSE]
 
-  # Container for the simulated values and initial values. First row row initial values vector, and t:th row for (y_{i-1},...,y_{i-p})
+  # Container for the simulated values and initial values. First row row initial values vector, and t:th row for (y_{t-1},...,y_{t-p})
   Y <- matrix(nrow=nsim + 1, ncol=d*p)
   Y[1,] <- reform_data(init_values, p=p)
-  if(!is.null(girf_pars)) Y2 <- Y # Storage for the second sample path in the GIRF algorithm
+  if(calc_girf) Y2 <- Y # Storage for the second sample path in the GIRF algorithm
 
   # Initialize data structures
   sample <- array(dim=c(nsim, d, ntimes))
   component <- matrix(nrow=nsim, ncol=ntimes)
   transition_weights <- array(dim=c(nsim, M, ntimes))
-  if(!is.null(girf_pars)) {
+  if(calc_girf) {
     sample2 <- array(dim=c(nsim, d, ntimes))
     transition_weights2 <- array(dim=c(nsim, M, ntimes))
   }
   if(weight_function == "exogenous") { # Fill in the exogenous weights
     transition_weights <- array(exo_weights, dim=c(nsim, M, ntimes))
+  }
+
+  if(!is.null(girf_pars$cfact_pars)) {
+    # Obtain what the indices for the counterfactual period for i1 running from 1 to nsim:
+    if(calc_girf) {
+      # i1 = 1 is the impact, i.e., horizon 0, and more generally i1 = n is the horizon n-1.
+      # So the counterfactual period goes in terms of i1 from cfact_start+1 to cfact_end+1
+      # (e.g., if cfact_start=0, and cfact_end=1, then the indices i1 considered are 1 and 2)
+      cfact_period <- (girf_pars$cfact_pars$cfact_start + 1):(girf_pars$cfact_pars$cfact_end + 1)
+    } else { # In forecast scenarios, the forecasting simply starts from horizon 1.
+      cfact_period <- girf_pars$cfact_pars$cfact_start:girf_pars$cfact_pars$cfact_end
+    }
   }
 
   # Some functions to be used
@@ -246,20 +307,20 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
     get_logmvdvalues <- function(Y, i1) {
       vapply(1:M,
              function(m) -0.5*d*p*log(2*base::pi) - 0.5*log(det_Sigmas[m]) - 0.5*(crossprod(Y[i1,] - rep(all_mu[, m], p),
-                                                                                  inv_Sigmas[, , m])%*%(Y[i1,] - rep(all_mu[, m], p))),
+                                                                                            inv_Sigmas[, , m])%*%(Y[i1,] - rep(all_mu[, m], p))),
              numeric(1))
     } # Returns M x 1 vector; transformed into a matrix in get_alpha_mt
   } else if(weight_function %in% c("logistic", "exponential", "threshold")) {
-     # Nothing to do here, can use get_alpha_mt directly
+    # Nothing to do here, can use get_alpha_mt directly
   } else if(weight_function == "mlogit") {
-     # Calculate the sub model regressions for calculating the transition weights
-     get_regression_values <- function(Y, i1) {
-        regressions_mt <- numeric(M) # Vector of zeros
-        for(i2 in 1:ncol(all_gamma_m)) {
-          regressions_mt[i2] <- crossprod(all_gamma_m[,i2], cbind(1, Y)[i1, inds_of_switching_vars])
-        }
-        regressions_mt
-     }
+    # Calculate the sub model regressions for calculating the transition weights
+    get_regression_values <- function(Y, i1) {
+      regressions_mt <- numeric(M) # Vector of zeros
+      for(i2 in 1:ncol(all_gamma_m)) {
+        regressions_mt[i2] <- crossprod(all_gamma_m[,i2], cbind(1, Y)[i1, inds_of_switching_vars])
+      }
+      regressions_mt
+    }
   } else if(weight_function == "exogenous") {
     # Nothing to do here, uses exo_weights directly
   }
@@ -273,7 +334,7 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
 
   # Run through the time periods and repetitions
   for(j1 in seq_len(ntimes)) {
-    if(cond_dist == "ind_skewed_t") { # Genererate sequences of structural shocks here for computational efficiency
+    if(cond_dist == "ind_skewed_t") { # Generate sequences of structural shocks here for computational efficiency
       all_e_t <- matrix(nrow=nsim, ncol=d) # [nsim, d]
       for(i1 in 1:d) {
         all_e_t[,i1] <- generate_skewed_t(n=nsim, nu=all_nu[i1], lambda=all_lambda[i1],
@@ -346,6 +407,48 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
         e_t <- all_e_t[i1,] # Sample from independent skewed t distributions (drawn earlier)
       }
 
+      # If countefactual scenario is considered, calculate the counterfactual shock yielding the cfactual scenario:
+      # THIS IS OUTSIDE THE SECOND GIRF SAMPLE PATH
+      if(!is.null(girf_pars$cfact_pars)) {
+        if(i1 %in% cfact_period) { # Counterfactual horizons
+          if(B_t[girf_pars$cfact_pars$policy_var, girf_pars$cfact_pars$policy_var] == 0) {
+            stop(paste("The obtained impact matrix B_t implies that the shock policy_var has zero impact on the policy variable.",
+                       "Thus, it is not possible to manipulate shocks to the policy variable to obtain any countefactual scenarios."))
+          } else if(abs(B_t[girf_pars$cfact_pars$policy_var, girf_pars$cfact_pars$policy_var]) < 1e-6) {
+            warning(paste("The shock to the policy variable seems to have a very small effect to the policy variable.",
+                          "This can create weird results in the counterfactual scenario.",))
+          }
+          if(girf_pars$cfact_pars$cfact_type == "fixed_path") { # Fixed path of policy variable in certain horizons
+            e_t_orig <- e_t # The original shock, used in GIRF sample path 2, particularly for muted_response cfactuals
+            index_in_cfact_path <- ifelse(calc_girf,
+                                          i1 - girf_pars$cfact_pars$cfact_start,     # GIRF: i1 is current horizon + 1
+                                          i1 - girf_pars$cfact_pars$cfact_start + 1) # Forecast scenario: i1 is current horizon
+            cfact_path_t <- girf_pars$cfact_pars$cfact_path[index_in_cfact_path] # The hypothetical path of the policy variable
+            effect_of_other_shocks <- as.numeric(crossprod(B_t[girf_pars$cfact_pars$policy_var, -girf_pars$cfact_pars$policy_var],
+                                                           e_t[-girf_pars$cfact_pars$policy_var])) # The effect of the other shocks to the policy var
+            cfact_policy_e_t <- (cfact_path_t - as.vector(mu_yt)[girf_pars$cfact_pars$policy_var] -
+                                   effect_of_other_shocks)/B_t[girf_pars$cfact_pars$policy_var,
+                                                               girf_pars$cfact_pars$policy_var] # The cfactual shock to the policy var, yielding the cfactual path
+            e_t[girf_pars$cfact_pars$policy_var] <- cfact_policy_e_t # Insert the counterfactual shock to the policy variable
+          } else if(girf_pars$cfact_pars$cfact_type == "muted_response") { # Muting the response of policy_var to mute_var in certain horizons
+            e_t_orig <- e_t # The original shock, used in GIRF sample path 2, particularly for muted_response cfactuals
+            # Calculate the autoregression matrices A_{y,t,i} for all lags i=1,...,p, for the time period t:
+            all_A_yti <- get_allA_yti(all_A=all_A, alpha_mt=as.vector(alpha_mt)) # [d, d, p], lag i is obtained from [, , i]
+
+            # Lagged effects of mute_var on policy_var:
+            lagged_effects <- as.numeric(crossprod(all_A_yti[girf_pars$cfact_pars$policy_var,
+                                                             girf_pars$cfact_pars$mute_var, ], # (px1) vec of i_1i_2:th elmts of A_yt s.t. lag i is in the i:th elmt.
+                                                   matrix(Y[i1,], nrow=d)[girf_pars$cfact_pars$mute_var,])) # i:th col is the vec y_{t-i}, and mute_var row is mute_var
+            # Contemporaneous effects of mute_var:th shock on policy_var:
+            cont_effects <- B_t[girf_pars$cfact_pars$policy_var, girf_pars$cfact_pars$mute_var]*e_t[girf_pars$cfact_pars$mute_var]
+            # Calculate the counterfactual shock to the policy variable that mutes the response to mute_var:
+            cfact_policy_e_t <- e_t[girf_pars$cfact_pars$policy_var] -
+              (1/B_t[girf_pars$cfact_pars$policy_var, girf_pars$cfact_pars$policy_var])*(lagged_effects + cont_effects) # The cfact shock to the policy var
+            e_t[girf_pars$cfact_pars$policy_var] <- cfact_policy_e_t # Insert the counterfactual shock to the policy variable
+          }
+        } # else: just use the original shock e_t
+      }
+
       # Calculate the current observation
       sample[i1, , j1] <- t(mu_yt) + B_t%*%e_t
 
@@ -357,7 +460,7 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
       }
 
       ## For the second sample in GIRF (with a specific structural shock occurring)
-      if(!is.null(girf_pars)) {
+      if(calc_girf) {
         # Calculate transition weights
         if(M == 1) {
           alpha_mt2 <- matrix(1)
@@ -368,7 +471,7 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
                                       weightpars=weightpars, log_mvdvalues=log_mvdvalues2, epsilon=epsilon)
           } else if(weight_function %in% c("logistic", "exponential", "threshold")) {
             alpha_mt2 <- get_alpha_mt(M=M, d=d, Y2=Y2[i1, , drop=FALSE], weight_function=weight_function,
-                                     weightfun_pars=weightfun_pars, weightpars=weightpars, epsilon=epsilon)
+                                      weightfun_pars=weightfun_pars, weightpars=weightpars, epsilon=epsilon)
           } else if(weight_function == "mlogit") {
             regression_values2 <- get_regression_values(Y=Y2, i1=i1) # Uses regressions as logmvd values in relative_dens fun
             alpha_mt2 <- get_alpha_mt(M=M, weight_function=weight_function, weightfun_pars=weightfun_pars,
@@ -410,9 +513,56 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
           }
         }
 
-        # At impact: impose a specific shock to the structural error e_t (which is drawn already for 1st path)
+        # At impact: impose a specific shock to the structural error e_t (which is drawn already for 1st path):
+        if(!is.null(girf_pars$cfact_pars) && i1 %in% cfact_period) {
+          # Initialize with the original shock, which is not modified in the counterfactual scenario.
+          # (it will be modified separately for the second GIRF sample path, although initialization needed only muted_response type cfactuals)
+          e_t <- e_t_orig
+          # Note that e_t_origdoes not exists when i1 < cfact_period[1] and does not update when i1 > cfact_period[length(cfact_period)]
+        }
         if(i1 == 1) {
-          e_t[girf_pars$shock_numb] <- girf_pars$shock_size
+          e_t[girf_pars$shock_numb] <- girf_pars$shock_size # Imposes the structural shock of specific sign and size
+        }
+
+        # If countefactual scenario is considered, calculate the counterfactual shock yielding the cfactual scenario:
+        # THIS IS INSIDE THE SECOND GIRF SAMPLE PATH
+        # (it is assumed girf_pars$cfact_pars$policy_var is not the same as girf_pars$shock_number)
+        if(!is.null(girf_pars$cfact_pars)) {
+          if(i1 %in% cfact_period) { # Counterfactual horizons
+            if(B_t2[girf_pars$cfact_pars$policy_var, girf_pars$cfact_pars$policy_var] == 0) {
+              stop(paste("The obtained impact matrix B_t implies that the shock policy_var has zero impact on the policy variable.",
+                         "Thus, it is not possible to manipulate shocks to the policy variable to obtain any countefactual scenarios."))
+            } else if(abs(B_t2[girf_pars$cfact_pars$policy_var, girf_pars$cfact_pars$policy_var]) < 1e-6) {
+              warning(paste("The shock to the policy variable seems to have a very small effect to the policy variable.",
+                            "This can create weird results in the counterfactual scenario.",))
+            }
+            if(girf_pars$cfact_pars$cfact_type == "fixed_path") { # Fixed path of policy variable in certain horizons
+              index_in_cfact_path <- ifelse(calc_girf,
+                                            i1 - girf_pars$cfact_pars$cfact_start,     # GIRF: i1 is current horizon + 1
+                                            i1 - girf_pars$cfact_pars$cfact_start + 1) # Forecast scenario: i1 is current horizon
+              cfact_path_t <- girf_pars$cfact_pars$cfact_path[index_in_cfact_path] # The hypothetical path of the policy variable
+              effect_of_other_shocks <- as.numeric(crossprod(B_t2[girf_pars$cfact_pars$policy_var, -girf_pars$cfact_pars$policy_var],
+                                                             e_t[-girf_pars$cfact_pars$policy_var])) # The effect of the other shocks to the policy var
+              cfact_policy_e_t <- (cfact_path_t - as.vector(mu_yt2)[girf_pars$cfact_pars$policy_var] -
+                                     effect_of_other_shocks)/B_t2[girf_pars$cfact_pars$policy_var,
+                                                                  girf_pars$cfact_pars$policy_var] # The cfactual shock to the policy var, yielding the cfactual path
+              e_t[girf_pars$cfact_pars$policy_var] <- cfact_policy_e_t # Insert the counterfactual shock to the policy variable
+            } else if(girf_pars$cfact_pars$cfact_type == "muted_response") { # Muting the response of policy_var to mute_var in certain horizons
+              # Calculate the autoregression matrices A_{y,t,i} for all lags i=1,...,p, for the time period t:
+              all_A_yti <- get_allA_yti(all_A=all_A, alpha_mt=as.vector(alpha_mt2)) # [d, d, p], lag i is obtained from [, , i]
+
+              # Lagged effects of mute_var on policy_var:
+              lagged_effects <- as.numeric(crossprod(all_A_yti[girf_pars$cfact_pars$policy_var,
+                                                               girf_pars$cfact_pars$mute_var,], # (px1) vec of i_1i_2:th elmts of A_yt s.t. lag i is in the i:th elmt.
+                                                     matrix(Y2[i1,], nrow=d)[girf_pars$cfact_pars$mute_var,])) # i:th col is the vec y_{t-i}, and mute_var row is mute_var
+              # Contemporaneous effects of mute_var:th shock on policy_var:
+              cont_effects <- B_t2[girf_pars$cfact_pars$policy_var, girf_pars$cfact_pars$mute_var]*e_t[girf_pars$cfact_pars$mute_var]
+              # Calculate the counterfactual shock to the policy variable that mutes the response to mute_var:
+              cfact_policy_e_t <- e_t[girf_pars$cfact_pars$policy_var] -
+                (1/B_t2[girf_pars$cfact_pars$policy_var, girf_pars$cfact_pars$policy_var])*(lagged_effects + cont_effects) # The cfact shock to the policy var
+              e_t[girf_pars$cfact_pars$policy_var] <- cfact_policy_e_t # Insert the counterfactual shock to the policy variable
+            }
+          } # else: just use the original shock e_t
         }
 
         # Calculate the current observation
@@ -429,15 +579,15 @@ simulate.stvar <- function(object, nsim=1, seed=NULL, ..., init_values=NULL, ini
   }
 
   # Calculate a single GIRF for the given structural shock: (N + 1 x d) matrix
-  if(!is.null(girf_pars)) {
+  if(calc_girf) {
     one_girf <- apply(X=sample2 - sample, MARGIN=1:2, FUN=mean)
     if(!is.null(stvar$data)) {
       colnames(one_girf) <- colnames(stvar$data)
     } else {
-      colnames(one_girf) <- paste("shock", 1:d)
+      colnames(one_girf) <- paste("Shock", 1:d)
     }
     tw_girf <- apply(X=transition_weights2 - transition_weights, MARGIN=1:2, FUN=mean)
-    colnames(tw_girf) <- paste("tw reg.", 1:M)
+    colnames(tw_girf) <- paste("tw Reg.", 1:M)
     return(cbind(one_girf, tw_girf))
   }
 

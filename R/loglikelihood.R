@@ -170,7 +170,10 @@
 #' @param allow_unstab If \code{TRUE}, estimates not satisfying the stability condition are allowed. Always \code{FALSE} if
 #'  \code{weight_function="relative_dens"}.
 #' @param bound_by_weights should \code{minval} be returned if the transition weights do not allocate enough weights to a regime
-#'   compared to the number of observations in the regime? See the source code for details.
+#'   compared to the number of observations in the regime? See the argument \code{min_obs_coef} for details.
+#' @param min_obs_coef if \code{bound_by_weights=TRUE}, determines the smallest accepted number of observations (times variables)
+#'   from each regime relative to the number of parameters in the regime. For models with AR constraints, the number of AR matrix
+#'    parameters in each regimes is simply assumed to be \code{ncol(AR_constraints)/M}. See the source code for further details.
 #' @param indt_R If \code{TRUE} calculates the independent Student's t density in R instead of C++ without any approximations
 #'   employed for speed-up.
 #' @param alt_par If \code{TRUE} assumes that models identified by non-Gaussianiaty (or \code{cond_dist="Student"}) are
@@ -202,7 +205,7 @@
 #'     \item{If \code{to_return=="total_ccovs"}:}{an \code{[d, d, n_obs-p]} array containing the conditional covariance matrices of
 #'       the process.}
 #'     \item{If \code{to_return=="B_t"}:}{an \code{[d, d, n_obs-p]} array containing the impact matrices \eqn{B_t} of
-#'       the process. Available only for models with \code{cond_dist="ind_Student"}.}
+#'       the process. Available only for models with \code{cond_dist="ind_Student" or "ind_skewed_t"}.}
 #'   }
 #' @references
 #'  \itemize{
@@ -234,11 +237,11 @@ loglikelihood <- function(data, p, M, params,
                           weightfun_pars=NULL, cond_dist=c("Gaussian", "Student", "ind_Student", "ind_skewed_t"),
                           parametrization=c("intercept", "mean"),
                           identification=c("reduced_form", "recursive", "heteroskedasticity", "non-Gaussianity"),
-                          AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL, B_constraints=NULL,
-                          other_constraints=NULL,
+                          AR_constraints=NULL, mean_constraints=NULL, weight_constraints=NULL, B_constraints=NULL, other_constraints=NULL,
                           to_return=c("loglik", "tw", "loglik_and_tw", "terms", "regime_cmeans", "total_cmeans", "total_ccovs", "B_t"),
                           check_params=TRUE, penalized=FALSE, penalty_params=c(0.05, 0.2), allow_unstab=FALSE, bound_by_weights=FALSE,
-                          indt_R=FALSE, alt_par=FALSE, minval=NULL, stab_tol=1e-3, posdef_tol=1e-8, distpar_tol=1e-8, weightpar_tol=1e-8) {
+                          min_obs_coef=2.5, indt_R=FALSE, alt_par=FALSE, minval=NULL, stab_tol=1e-3, posdef_tol=1e-8, distpar_tol=1e-8,
+                          weightpar_tol=1e-8) {
 
   # Match args
   weight_function <- match.arg(weight_function)
@@ -261,7 +264,7 @@ loglikelihood <- function(data, p, M, params,
                                          weightfun_pars=weightfun_pars, cond_dist=cond_dist)
 
   # Collect the parameter values
-  # First remove all constraints, if any; also switch to reduced form parameter vector;
+  # First remove all constraints if any:
   params <- reform_constrained_pars(p=p, M=M, d=d, params=params, weight_function=weight_function,
                                     cond_dist=cond_dist, identification=identification,
                                     AR_constraints=AR_constraints, mean_constraints=mean_constraints,
@@ -302,7 +305,7 @@ loglikelihood <- function(data, p, M, params,
 
   # i:th row denotes the vector \bold{y_{i-1}} = (y_{i-1},...,y_{i-p}) (dpx1),
   # assuming the observed data is y_{-p+1},...,y_0,y_1,...,y_{T}
-  Y <- reform_data(data, p)
+  Y <- reform_data(data, p=p)
   Y2 <- Y[1:T_obs, , drop=FALSE] # Last row removed; not needed when calculating something based on lagged observations
 
   # Calculate unconditional regime-specific expected values (column per component) or phi0-parameters if using mean-parametrization
@@ -331,7 +334,7 @@ loglikelihood <- function(data, p, M, params,
       ifelse(is.null(AR_constraints), p*d^2, ncol(AR_constraints)/M) + # AR params
       ifelse(cond_dist %in% c("ind_Student", "ind_skewed_t"), d^2, d*(d + 1)/2) # Covmat params
     obs_per_reg <- d*colSums(alpha_mt)
-    if(any(obs_per_reg < 1.2*pars_per_reg)) {
+    if(any(obs_per_reg < min_obs_coef*pars_per_reg)) {
       return(minval)
     }
   }
@@ -512,7 +515,7 @@ loglikelihood <- function(data, p, M, params,
 #' @param all_mu an \eqn{(d \times M)} matrix containing the unconditional regime-specific means
 #' @param epsilon the smallest number such that its exponent is wont classified as numerically zero
 #'   (around \code{-698} is used).
-#' @param log_mvdvalues a \eqn{T x M} matrix containing log multivariate normal densities (can be used with
+#' @param log_mvdvalues a \eqn{(T \times M)} matrix containing log multivariate normal densities (can be used with
 #'   relative dens weight function only)
 #' @details Note that we index the time series as \eqn{-p+1,...,0,1,...,T}.
 #' @return Returns the mixing weights a \eqn{(T x M)} matrix, so that the \eqn{t}th row is for the time period \eqn{t}
@@ -524,9 +527,11 @@ get_alpha_mt <- function(data, Y2, p, M, d,
                          weight_function=c("relative_dens", "logistic", "mlogit", "exponential", "threshold", "exogenous"),
                          weightfun_pars=NULL, all_A, all_boldA, all_Omegas, weightpars, all_mu, epsilon, log_mvdvalues=NULL) {
   weight_function <- match.arg(weight_function)
+
   if(weight_function == "exogenous") {
     return(weightfun_pars)
   }
+
   if(is.null(log_mvdvalues)) {
     T_obs <- ifelse(missing(data), 1, nrow(data) - p) # simulate.stvar and estim_LS use without data, needs to return 1 if M=1.
     if(M == 1) {

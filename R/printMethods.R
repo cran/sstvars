@@ -634,3 +634,110 @@ print.irf <- function(x, ..., digits=2, N_to_print, shocks_to_print) {
   }
   invisible(irf)
 }
+
+
+#' @describeIn hist_decomp print method
+#' @param x object of class \code{'histdecomp'} created by the function \code{hist_decomp}.
+#' @param digits how many significant digits to print?
+#' @param ... currently not in use.
+#' @param which_vars a numeric vector specifying the variables to print. The default is that
+#'   all the variables are printed.
+#' @param which_indices a numeric vector specifying the time period indices to print. The default
+#'   is that all the time periods are printed.
+#' @return Returns the input object \code{x} invisibly.
+#' @export
+
+print.histdecomp <- function(x, ..., digits=3, which_vars, which_indices) {
+  histdec <- x
+  shock_contributions <- histdec$contributions_of_shocks
+  d <- histdec$stvar$model$d
+  stopifnot(digits >= 0 & digits%%1 == 0)
+  if(missing(which_vars)) {
+    which_vars <- 1:d
+  } else {
+    stopifnot(is.numeric(which_vars) && length(which_vars) <= d && all(which_vars %in% 1:d))
+    which_vars <- sort(unique(which_vars), decreasing=FALSE)
+  }
+  if(missing(which_indices)) {
+    which_indices <- 1:dim(shock_contributions)[1]
+  } else {
+    stopifnot(is.numeric(which_indices) && length(which_indices) <= dim(shock_contributions)[1] && all(which_indices %in% 1:dim(shock_contributions)[1]))
+    which_indices <- sort(unique(which_indices), decreasing=FALSE)
+  }
+  n_vars <- dim(shock_contributions)[3]
+  if(is.null(colnames(histdec$stvar$data))) {
+    var_names <- paste("Variable", 1:n_vars)
+  } else {
+    var_names <- colnames(histdec$stvar$data)
+  }
+  for(i1 in which_vars) {
+    if(i1 != which_vars[1]) cat("------------------------\n")
+    cat(paste0("The contributions of the shocks to the fluctuations of ", var_names[i1], ":"), "\n")
+    print(round(shock_contributions[which_indices, , i1], digits=digits))
+    cat("\n")
+  }
+  invisible(histdec)
+}
+
+
+#' @describeIn cfact_hist print method
+#' @param x object of class \code{'cfacthist'} created by the function \code{cfact_hist}.
+#' @param digits how many significant digits to print?
+#' @param ... arguments passed to the function \code{window} to select the time periods to print.
+#' @return Returns the input object \code{x} invisibly.
+#' @export
+
+print.cfacthist <- function(x, ..., digits=3) {
+  cfacthist <- x
+  stopifnot(digits >= 0 & digits%%1 == 0)
+  cat(paste0("Historical counterfactual ",
+             ifelse(cfacthist$input$cfact_type == "fixed_path",
+                    paste("specifying a fixed path to Variable", cfacthist$input$policy_var),
+                    paste("shutting off the response of Variable", cfacthist$input$policy_var,
+                          "to lagged and contemporaneous movements of Variable", cfacthist$input$mute_var)),
+             " for the time periods from t=", cfacthist$input$cfact_start, " to t=", cfacthist$input$cfact_end, ".\n\n"))
+  print(round(window(cfacthist$cfact_data, ...), digits=digits))
+  invisible(cfacthist)
+}
+
+
+#' @describeIn cfact_fore print method
+#' @param x object of class \code{'cfactfore'} created by the function \code{cfact_fore}.
+#' @param digits how many significant digits to print?
+#' @param ... parameters passed to \code{print.stvarpred} printing the forecast.
+#' @return Returns the input object \code{x} invisibly.
+#' @export
+
+print.cfactfore <- function(x, ..., digits=3) {
+  cfactfore <- x
+  stopifnot(digits >= 0 & digits%%1 == 0)
+  cat(paste0("Counterfactual forecast scenario ",
+             ifelse(cfactfore$input$cfact_type == "fixed_path",
+                    paste("specifying a fixed path to Variable", cfactfore$input$policy_var),
+                    paste("shutting off the response of Variable", cfactfore$input$policy_var,
+                          "to lagged and contemporaneous movements of Variable", cfactfore$input$mute_var)),
+             " for the forecast horizons from h=", cfactfore$input$cfact_start, " to h=", cfactfore$input$cfact_end, ".\n\n"))
+  print(cfactfore$cfact_pred, ..., digits=digits)
+  invisible(cfactfore)
+}
+
+
+#' @describeIn cfact_girf print method
+#' @param x object of class \code{'cfactgirf'} created by the function \code{cfact_girf}.
+#' @param digits how many significant digits to print?
+#' @param ... parameters passed to \code{print.stvargirf} printing the girf.
+#' @return Returns the input object \code{x} invisibly.
+#' @export
+
+print.cfactgirf <- function(x, ..., digits=3) {
+  cfactgirf <- x
+  stopifnot(digits >= 0 & digits%%1 == 0)
+  cat(paste0("Counterfactual GIRF ",
+             ifelse(cfactgirf$input$cfact_type == "fixed_path",
+                    paste("specifying a fixed path to Variable", cfactgirf$input$policy_var),
+                    paste("shutting off the response of Variable", cfactgirf$input$policy_var,
+                          "to lagged and contemporaneous movements of Variable", cfactgirf$input$mute_var)),
+             " for the impulse response horizons from h=", cfactgirf$input$cfact_start, " to h=", cfactgirf$input$cfact_end, ".\n\n"))
+  print(cfactgirf$girf, ..., digits=digits)
+  invisible(cfactgirf)
+}

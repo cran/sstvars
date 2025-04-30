@@ -27,8 +27,8 @@ linear_IRF(
 }
 \arguments{
 \item{stvar}{an object of class \code{'stvar'} defining a structural or reduced form
-STVAR model. For a reduced form model, the shocks are automatically identified by
-the lower triangular Cholesky decomposition.}
+STVAR model. For a reduced form model (that is not readily identified statiscally),
+the shocks are automatically identified by the lower triangular Cholesky decomposition.}
 
 \item{N}{a positive integer specifying the horizon how far ahead should the
 linear impulse responses be calculated.}
@@ -191,6 +191,6 @@ plot(irf4)
  }
 }
 \seealso{
-\code{\link{GIRF}}, \code{\link{GFEVD}}, \code{\link{fitSTVAR}}, \code{\link{STVAR}},
-  \code{\link{reorder_B_columns}}, \code{\link{swap_B_signs}}
+\code{\link{GIRF}}, \code{\link{GFEVD}}, \code{\link{hist_decomp}}, \code{\link{cfact_hist}}, \code{\link{cfact_fore}},
+ \code{\link{cfact_girf}}, \code{\link{fitSTVAR}}, \code{\link{STVAR}}, \code{\link{reorder_B_columns}}, \code{\link{swap_B_signs}}
 }

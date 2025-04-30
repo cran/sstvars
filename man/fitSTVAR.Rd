@@ -109,8 +109,8 @@ constraint matrix of full column rank (\eqn{a} is the dimension of \eqn{\alpha})
 and \eqn{\xi} is an unknown \eqn{(l\times 1)} parameter. \strong{Alternatively}, set \eqn{R=0} to constrain the
 weight parameters to the constant \eqn{r} (in this case, \eqn{\alpha} is dropped from the constrained parameter vector).}
 
-\item{estim_method}{either \code{"two-phase"} or \code{"three-phase"} (the latter is the default
-option for threshold models and the former is currently the only option for other models). See details.}
+\item{estim_method}{either \code{"two-phase"} or \code{"three-phase"} (the former is the default method for \code{relative_dens} models
+and the latter the default for the other models). See details.}
 
 \item{penalized}{should penalized log-likelihood function be used that penalizes the log-likelihood function when
 the parameter values are close the boundary of the stability region or outside it? If \code{TRUE}, estimates
@@ -127,7 +127,7 @@ is a tuning parameter for the penalization (a positive real number, a higher val
 
 \item{min_obs_coef}{In the LS/NLS step of the three phase estimation, the smallest accepted number of observations
 (times variables) from each regime relative to the number of parameters in the regime. For models with AR constraints,
-the number of AR matrix parameters in each regimes is simplisticly assumed to be \code{ncol(AR_constraints)/M}.}
+the number of AR matrix parameters in each regimes is simply assumed to be \code{ncol(AR_constraints)/M}.}
 
 \item{sparse_grid}{should the grid of weight function values in LS/NLS estimation be more sparse (speeding up the estimation)?}
 
@@ -243,6 +243,10 @@ If you wish to estimate a structural model, estimate first the reduced form mode
  stationarity is close to break), or transition weights such that they are close to zero for almost all \eqn{t} for at least
  one regime. You can also always find the solutions of interest yourself by using the function \code{alt_stvar} as well since
  results from all estimation rounds are saved).
+
+ \strong{Passing arguments to the genetic algorithm:} The settings of the genetic algorithm can be adjusted by passing arguments
+ to it via the dot parameters. See all the available options from the documentation of the function \code{GAfit} with the command
+ \code{??GAfit}.
 }
 \section{S3 methods}{
 

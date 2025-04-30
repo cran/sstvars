@@ -117,7 +117,7 @@ pick_Am <- function(p, M, d, params, m, structural_pars=NULL) {
 #'   indicating each regime and third dimension indicating each lag.
 #'
 #' @inheritParams pick_Am
-#' @return Returns a 4D array containing the coefficient matrices of the all components. Coefficient matrix
+#' @return Returns a 4D array containing the coefficient matrices of all regimes. Coefficient matrix
 #'  \eqn{A_{m,i}} can be obtained by choosing \code{[, , i, m]}.
 #' @inherit pick_Ami details
 #' @inheritSection pick_Ami Warning
@@ -305,7 +305,7 @@ pick_regime <- function(p, M, d, params, m, cond_dist=c("Gaussian", "Student", "
 #'   of a structural model identified by heteroskedasticity.
 #' @inheritParams loglikelihood
 #' @details Constrained parameter vectors are not supported. Not even constraints in \eqn{W}!
-#' @return Returns a \eqn{(d x d)} matrix \eqn{W} for structural models identified by heteroskedasticity
+#' @return Returns a \eqn{(d \times d)} matrix \eqn{W} for structural models identified by heteroskedasticity
 #'   and \code{NULL} for other models.
 #' @references
 #' \itemize{

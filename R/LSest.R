@@ -80,9 +80,11 @@ estim_LS <- function(data, p, M, weight_function=c("relative_dens", "logistic", 
   # Obtain relevant statistics
   n_obs <- nrow(data)
   T_obs <- n_obs - p
-  pars_per_regime <- d + ifelse(is.null(AR_constraints), p*d^2, ncol(AR_constraints)/M) + d^2
-  T_min <- min_obs_coef/d*pars_per_regime # Minimum number of obs in each regime
-  if(T_obs/M < T_min) { # Try smaller T_min
+  n_meanpars_reg <- ifelse(is.null(mean_constraints), d, length(mean_constraints)*d/M)
+  n_arpars_reg <- ifelse(is.null(AR_constraints), p*d^2, ncol(AR_constraints)/M) # The number of AR parameters in each regime
+  n_covmatpars_reg <- ifelse(cond_dist %in% c("ind_Student", "ind_skewed_t"), d^2, d*(d + 1)/2)
+  T_min <- min_obs_coef/d*(n_meanpars_reg + n_arpars_reg + n_covmatpars_reg) # Minimum number of obs in each regime
+  if(T_obs/M < T_min) {
     stop(paste("The number of observations is too small for reasonable estimation (according to the argument 'min_obs_coef').",
                "Decrease the order p or the number of regimes M."))
   }
@@ -438,9 +440,11 @@ estim_NLS <- function(data, p, M, weight_function=c("relative_dens", "logistic",
   n_obs <- nrow(data)
   T_obs <- n_obs - p
   if(weight_function != "exogenous") {
-    T_min <- min_obs_coef/d*ifelse(is.null(AR_constraints), (p + 1)*d^2 + d,
-                        ncol(AR_constraints)/M + d + d^2) # Minimum number of obs in each regime
-    if(T_obs/M < T_min) { # Try smaller T_min
+    n_meanpars_reg <- ifelse(is.null(mean_constraints), d, length(mean_constraints)*d/M)
+    n_arpars_reg <- ifelse(is.null(AR_constraints), p*d^2, ncol(AR_constraints)/M) # The number of AR parameters in each regime
+    n_covmatpars_reg <- ifelse(cond_dist %in% c("ind_Student", "ind_skewed_t"), d^2, d*(d + 1)/2)
+    T_min <- min_obs_coef/d*(n_meanpars_reg + n_arpars_reg + n_covmatpars_reg) # Minimum number of obs in each regime
+    if(T_obs/M < T_min) {
        stop(paste("The number of observations is too small for reasonable estimation (according to the argument 'min_obs_coef').",
                   "Decrease the order p or the number of regimes M."))
     }
@@ -612,7 +616,9 @@ estim_NLS <- function(data, p, M, weight_function=c("relative_dens", "logistic",
   ############################################
 
   ## Create the set of weight parameters for the optimization; M=1 will use numeric(0) and run the NLS only once
-  if(is.null(weight_constraints) && weight_function != "exogenous") {
+  if(M == 1) {
+    weightparvecs <- numeric(0)
+  } else if(is.null(weight_constraints) && weight_function != "exogenous") {
     if(weight_function != "mlogit") {
       switch_var_series <- data[,weightfun_pars[1]] # The switching variable time series
       sv_sorted_full <- sort(switch_var_series, decreasing=FALSE) # The sorted switch variable series
@@ -681,9 +687,9 @@ estim_NLS <- function(data, p, M, weight_function=c("relative_dens", "logistic",
   ## Estimate the model for all weight pars in weight_pars
   estim_length <- if(is.null(AR_constraints)) M*d + M*p*d^2 + 1 else M*d + ncol(AR_constraints) + 1
 
-  if(M == 1) {
+  if(M == 1 || weight_function == "exogenous") {
     if(use_parallel) message(paste("PHASE 1: Estimating the AR and weight parameters by nonlinear least squares..."))
-    estims <- as.matrix(NLS_est(numeric(0), AR_constraints=AR_constraints))
+    estims <- as.matrix(NLS_est(weightparvecs, AR_constraints=AR_constraints))
     all_stab_ex <- stab_exceeded(estims[,1])
   } else {
     if(use_parallel) {
@@ -703,7 +709,7 @@ estim_NLS <- function(data, p, M, weight_function=c("relative_dens", "logistic",
 
       if(penalized) {
         if(M > 2) {
-          message(paste0("Checking the stability condition for all the LS estimates..."))
+          message(paste0("Checking the stability condition for all the NLS estimates..."))
           all_stab_ex <- simplify2array(pbapply::pblapply(1:nrow(weightparvecs), FUN=function(i1) stab_exceeded(estims[,i1]), cl=cl))
         } else { # Less prints, since the calculations are fast enough
           all_stab_ex <- simplify2array(pbapply::pblapply(1:nrow(weightparvecs), FUN=function(i1) stab_exceeded(estims[,i1]), cl=cl))
@@ -746,5 +752,6 @@ estim_NLS <- function(data, p, M, weight_function=c("relative_dens", "logistic",
   } else {
     weightpar_estims <- weightparvecs[min_rss_index,]
   }
+
   c(int_and_ar_estims, weightpar_estims) # Return the estimates
 }

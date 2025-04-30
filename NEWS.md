@@ -30,9 +30,9 @@
 * Added a new functionality to fitSSTVAR: structural models identified by non-Gaussianity can be estimated based on different orderings
   or signs of the columns of any of B_1,...,B_M (to conveniently examine models corresponding to various orderings and signs in the presence
   of weak identification with respect to ordering or signs of the columns of B_2,...,B_M)
-* FIXED A BUG in the simulation algorithm for models incorporating independent Student's t conditional distributions
+* Fixed a bug in the simulation algorithm for models incorporating independent Student's t conditional distributions
   (the variance of each structural shock was not scaled to one). 
-* FIXED A BUG in the GIRF simulation algorithm: the transition weights were not necessarily high for 'init_regime' at impact (but
+* Fixed a bug in the GIRF simulation algorithm: the transition weights were not necessarily high for 'init_regime' at impact (but
   the initial values were generated from the correct regimes).
 * Made the function profile_logliks more user friendly. 
 * Added a simplified table of contents to the vignette. 
@@ -97,3 +97,19 @@
 * Added the argument "h" to functions fitSTVAR and fitSSTVAR, which allows to specify the difference in finite difference approximation of the gradient used in
   numerical optimization.
 * In the function profile_logliks, added the missing subscript to elements of the impact matrix B_m to indicate the corresponding regime.
+
+# sstvars 1.2.0
+
+* MAJOR: Added three new functions for conducting counterfactual analysis, policy counterfactuals in particular. The new functions are
+  cfact_hist (for historical counterfactuals), cfact_fore (for counterfactual forecast scenarios), and cfact_girf (for counterfactual
+  generalized impulse response functions). See the vignette for details on the implemented methods.
+* MAJOR: Added the new function hist_decomp that allows to compute historical decompositions for TVAR and STVAR models. See the vignette for details.
+* It is not possible in the genetic algorithm to only allow for estimates that allocate the specified amount of observations to each regime
+  (see ??GAfit and the arguments bound_by_weights and min_obs_coef_ga).
+* Bug fix: There was an issue with the Phase 1 estimation of the three-phase estimation when weight_function = "exogenous" (NLS estimates were not calculated
+  correctly). This is now fixed.
+* Previously the documentation of fitSTVAR incorrectly stated that two-phase estimation method is the default all but TVAR models, although it is the default for
+  only relative_dens models. The documentation has been updated to clarify this.
+* Fixed some typos and similar type of editing issues from Section 2.1 of the vignette. 
+* Adjusted the argument min_obs_coef to work slightly more accurately. This might have some effect on the obtained estimates. 
+* Removed the internally used argument girf_pars from simulate.stvar.

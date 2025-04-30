@@ -10,6 +10,7 @@
 #' @param exo_weights if \code{weight_function="exogenous"}, provide a size \eqn{(nsteps x M)} matrix of exogenous
 #'  transition weights for the regimes: \code{[step, m]} for \eqn{step} steps ahead and regime \eqn{m} weight. Ignored
 #'  if \code{weight_function!="exogenous"}.
+#' @param ... Arguments passed to \code{simulate.stvar} (intended for internal use only).
 #' @details The forecasts are computed by simulating multiple sample paths of the future observations and
 #'   using the sample medians or means as point forecasts and empirical quantiles as prediction intervals.
 #' @return Returns a class '\code{stvarpred}' object containing, among the specifications,...
@@ -52,7 +53,7 @@ predict.stvar <- function(object, ..., nsteps, nsim=1000, pi=c(0.95, 0.80), pred
   stopifnot(all(pi > 0 & pi < 1))
   dat <- stvar$data
   pred_type <- match.arg(pred_type)
-  if(!all_pos_ints(c(nsim, nsteps))) stop("nsim and n_ahaed should be positive integers")
+  if(!all_pos_ints(c(nsim, nsteps))) stop("nsim and nsteps should be positive integers")
 
   # Check the exogenous weights given for simulation
   if(stvar$model$weight_function == "exogenous") {
@@ -60,7 +61,7 @@ predict.stvar <- function(object, ..., nsteps, nsim=1000, pi=c(0.95, 0.80), pred
   }
 
   # Simulations
-  simulations <- simulate.stvar(stvar, nsim=nsteps, init_values=dat, ntimes=nsim, drop=FALSE, exo_weights=exo_weights)
+  simulations <- simulate.stvar(stvar, nsim=nsteps, init_values=dat, ntimes=nsim, drop=FALSE, exo_weights=exo_weights, ...)
   sample <- simulations$sample
   alpha_mt <- simulations$transition_weights
   colnames(sample) <- colnames(dat)

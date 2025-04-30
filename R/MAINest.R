@@ -4,8 +4,8 @@
 #'   or three phases. In additional ML estimation, also penalized ML estimation is available.
 #'
 #' @inheritParams GAfit
-#' @param estim_method either \code{"two-phase"} or \code{"three-phase"} (the latter is the default
-#'   option for threshold models and the former is currently the only option for other models). See details.
+#' @param estim_method either \code{"two-phase"} or \code{"three-phase"} (the former is the default method for \code{relative_dens} models
+#'   and the latter the default for the other models). See details.
 #' @param penalized should penalized log-likelihood function be used that penalizes the log-likelihood function when
 #'   the parameter values are close the boundary of the stability region or outside it? If \code{TRUE}, estimates
 #'   that do not satisfy the stability condition are allowed (except when \code{weight_function="relative_dens"}).
@@ -16,7 +16,7 @@
 #'   is a tuning parameter for the penalization (a positive real number, a higher value penalizes non-stability more).
 #' @param min_obs_coef In the LS/NLS step of the three phase estimation, the smallest accepted number of observations
 #'   (times variables) from each regime relative to the number of parameters in the regime. For models with AR constraints,
-#'   the number of AR matrix parameters in each regimes is simplisticly assumed to be \code{ncol(AR_constraints)/M}.
+#'   the number of AR matrix parameters in each regimes is simply assumed to be \code{ncol(AR_constraints)/M}.
 #' @param sparse_grid should the grid of weight function values in LS/NLS estimation be more sparse (speeding up the estimation)?
 #' @param h the strictly positive difference used in the finite difference approximation of the gradient used in numerical optimization.
 #' @param nrounds the number of estimation rounds that should be performed. The default is \code{(M*ncol(data))^3}
@@ -91,6 +91,10 @@
 #'  stationarity is close to break), or transition weights such that they are close to zero for almost all \eqn{t} for at least
 #'  one regime. You can also always find the solutions of interest yourself by using the function \code{alt_stvar} as well since
 #'  results from all estimation rounds are saved).
+#'
+#'  \strong{Passing arguments to the genetic algorithm:} The settings of the genetic algorithm can be adjusted by passing arguments
+#'  to it via the dot parameters. See all the available options from the documentation of the function \code{GAfit} with the command
+#'  \code{??GAfit}.
 #'
 #' @inherit STVAR return
 #' @section S3 methods:
@@ -509,6 +513,7 @@ fitSTVAR <- function(data, p, M, weight_function=c("relative_dens", "logistic", 
             allow_unstab=allow_unstab,
             seed=seeds[i1], ...)
     }
+
     GAresults <- lapply(1:nrounds, function(i1) tmpfunGA(i1, ...))
   }
 
