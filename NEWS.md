@@ -104,7 +104,7 @@
   cfact_hist (for historical counterfactuals), cfact_fore (for counterfactual forecast scenarios), and cfact_girf (for counterfactual
   generalized impulse response functions). See the vignette for details on the implemented methods.
 * MAJOR: Added the new function hist_decomp that allows to compute historical decompositions for TVAR and STVAR models. See the vignette for details.
-* It is not possible in the genetic algorithm to only allow for estimates that allocate the specified amount of observations to each regime
+* It is not possible in the genetic algorithm to only allow for estimates that allocate a specified amount of observations to each regime
   (see ??GAfit and the arguments bound_by_weights and min_obs_coef_ga).
 * Bug fix: There was an issue with the Phase 1 estimation of the three-phase estimation when weight_function = "exogenous" (NLS estimates were not calculated
   correctly). This is now fixed.
@@ -113,3 +113,11 @@
 * Fixed some typos and similar type of editing issues from Section 2.1 of the vignette. 
 * Adjusted the argument min_obs_coef to work slightly more accurately. This might have some effect on the obtained estimates. 
 * Removed the internally used argument girf_pars from simulate.stvar.
+
+# sstvars 1.2.1
+
+* Fixed the labels for variables in GIRFs etc when they were calculated using a model either not containing any data or containing data without variable names. 
+* Removed the fixed "lwd" setting from the plot method for historical decompositions. The line thickness can now be adjust with the dot parameters. 
+* If a matrix is provided as the argument "init_vals" in GIRF or GFEVD, it is now automatically converted to the appropriate array. 
+* Fixed a bug in the counterfactual functions that caused an error when only a warning (about the small effect of the shock the policy variable) should have been thrown.
+* Improved the data documentation.
