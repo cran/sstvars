@@ -46,8 +46,8 @@
 #'    \item Hubrich K., Teräsvirta. T. 2013. Thresholds and Smooth Transitions in Vector Autoregressive Models.
 #'      \emph{CREATES Research Paper 2013-18, Aarhus University.}
 #'    \item Lanne M., Virolainen S. 2025. A Gaussian smooth transition vector autoregressive model:
-#'       An application to the macroeconomic effects of severe weather shocks. Unpublished working
-#'       paper, available as arXiv:2403.14216.
+#'       An application to the macroeconomic effects of severe weather shocks.
+#'       \emph{Journal of Economic Dynamics and Control}, \strong{178}, 105162.
 #'    \item Kheifets I.L., Saikkonen P.J. 2020. Stationarity and ergodicity of Vector STAR models.
 #'      \emph{Econometric Reviews}, \strong{39}:4, 407-414.
 #'    \item Lütkepohl H., Netšunajev A. 2017. Structural vector autoregressions with smooth transition in variances.
@@ -493,13 +493,24 @@ swap_parametrization <- function(stvar, calc_std_errors=FALSE) {
                                        AR_constraints=stvar$model$AR_constraints, mean_constraints=stvar$model$mean_constraints,
                                        weight_constraints=stvar$model$weight_constraints, B_constraints=stvar$model$B_constraints,
                                        change_to=change_to)
-  STVAR(data=stvar$data, p=stvar$model$p, M=stvar$model$M, d=stvar$model$d, params=new_params, parametrization=change_to,
-        weight_function=stvar$model$weight_function, weightfun_pars=stvar$model$weightfun_pars,
-        cond_dist=stvar$model$cond_dist, identification=stvar$model$identification,
-        AR_constraints=stvar$model$AR_constraints, mean_constraints=stvar$model$mean_constraints,
-        weight_constraints=stvar$model$weight_constraints, B_constraints=stvar$model$B_constraints,
-        penalized=stvar$penalized, penalty_params=stvar$penalty_params, allow_unstab=stvar$allow_unstab,
-        calc_std_errors=calc_std_errors)
+  ret <- STVAR(data=stvar$data, p=stvar$model$p, M=stvar$model$M, d=stvar$model$d, params=new_params, parametrization=change_to,
+               weight_function=stvar$model$weight_function, weightfun_pars=stvar$model$weightfun_pars,
+               cond_dist=stvar$model$cond_dist, identification=stvar$model$identification,
+               AR_constraints=stvar$model$AR_constraints, mean_constraints=stvar$model$mean_constraints,
+               weight_constraints=stvar$model$weight_constraints, B_constraints=stvar$model$B_constraints,
+               penalized=stvar$penalized, penalty_params=stvar$penalty_params, allow_unstab=stvar$allow_unstab,
+               calc_std_errors=calc_std_errors)
+
+  # Pass the estimation results to the new object (they are null they don't exists in stvar)
+  ret$all_estimates <- stvar$all_estimates
+  ret$all_logliks <- stvar$all_logliks
+  ret$which_converged <- stvar$which_converged
+  ret$seeds <- stvar$seeds
+  ret$which_round <- stvar$which_round
+  ret$LS_estimates <- stvar$LS_estimates
+
+  # Return the new object
+  ret
 }
 
 
@@ -780,12 +791,23 @@ reorder_B_columns <- function(stvar, perm, calc_std_errors=FALSE) {
   }
 
   ## Construct the STVAR model based on the obtained structural parameters
-  STVAR(data=stvar$data, p=p, M=M, d=d, params=new_params, weight_function=weight_function,
-        weightfun_pars=weightfun_pars, cond_dist=cond_dist, parametrization=stvar$model$parametrization,
-        identification=identification, AR_constraints=AR_constraints, mean_constraints=mean_constraints,
-        weight_constraints=weight_constraints, B_constraints=new_B_constraints,
-        penalized=stvar$penalized, penalty_params=stvar$penalty_params, allow_unstab=stvar$allow_unstab,
-        calc_std_errors=calc_std_errors)
+  ret <- STVAR(data=stvar$data, p=p, M=M, d=d, params=new_params, weight_function=weight_function,
+               weightfun_pars=weightfun_pars, cond_dist=cond_dist, parametrization=stvar$model$parametrization,
+               identification=identification, AR_constraints=AR_constraints, mean_constraints=mean_constraints,
+               weight_constraints=weight_constraints, B_constraints=new_B_constraints,
+               penalized=stvar$penalized, penalty_params=stvar$penalty_params, allow_unstab=stvar$allow_unstab,
+               calc_std_errors=calc_std_errors)
+
+  # Pass the estimation results to the new object (they are null they don't exists in stvar)
+  ret$all_estimates <- stvar$all_estimates
+  ret$all_logliks <- stvar$all_logliks
+  ret$which_converged <- stvar$which_converged
+  ret$seeds <- stvar$seeds
+  ret$which_round <- stvar$which_round
+  ret$LS_estimates <- stvar$LS_estimates
+
+  # Return the new object
+  ret
 }
 
 
@@ -937,12 +959,23 @@ swap_B_signs <- function(stvar, which_to_swap, calc_std_errors=FALSE) {
   }
 
   # Construct the SSTVAR model based on the obtained structural parameters
-  STVAR(data=stvar$data, p=p, M=M, d=d, params=new_params, weight_function=weight_function,
-        weightfun_pars=weightfun_pars, cond_dist=cond_dist, parametrization=stvar$model$parametrization,
-        identification=identification, AR_constraints=AR_constraints, mean_constraints=mean_constraints,
-        weight_constraints=weight_constraints, B_constraints=new_B_constraints,
-        penalized=stvar$penalized, penalty_params=stvar$penalty_params, allow_unstab=stvar$allow_unstab,
-        calc_std_errors=calc_std_errors)
+  ret <- STVAR(data=stvar$data, p=p, M=M, d=d, params=new_params, weight_function=weight_function,
+               weightfun_pars=weightfun_pars, cond_dist=cond_dist, parametrization=stvar$model$parametrization,
+               identification=identification, AR_constraints=AR_constraints, mean_constraints=mean_constraints,
+               weight_constraints=weight_constraints, B_constraints=new_B_constraints,
+               penalized=stvar$penalized, penalty_params=stvar$penalty_params, allow_unstab=stvar$allow_unstab,
+               calc_std_errors=calc_std_errors)
+
+  # Pass the estimation results to the new object (they are null they don't exists in stvar)
+  ret$all_estimates <- stvar$all_estimates
+  ret$all_logliks <- stvar$all_logliks
+  ret$which_converged <- stvar$which_converged
+  ret$seeds <- stvar$seeds
+  ret$which_round <- stvar$which_round
+  ret$LS_estimates <- stvar$LS_estimates
+
+  # Return the new object
+  ret
 }
 
 
