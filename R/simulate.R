@@ -9,7 +9,7 @@
 #' @param init_values a size \eqn{(p\times d)} matrix specifying the initial values, where d is the number
 #'  of time series in the system. The \strong{last} row will be used as initial values for the first lag,
 #'  the second last row for second lag etc. If not specified, initial values will be drawn from
-#'  the regime specified in \code{init_regimes} (for Gaussian models only).
+#'  the regime specified in \code{init_regimes}.
 #' @param init_regime an integer in \eqn{1,...,M} specifying the regime from which
 #'  the initial values should be generated from (using a simulation procedure with a burn-in period).
 #'  For models with Gaussian conditional distribution, it is also possible to generate the starting
@@ -40,13 +40,13 @@
 #' @return Returns a list containing the simulation results. If \code{drop==TRUE} and \code{ntimes==1} (default),
 #'   contains the following entries:
 #'   \item{sample}{a size (\code{nsim}\eqn{\times d}) matrix containing the simulated time series.}
-#'   \item{transition weights:}{a size (\code{nsim}\eqn{\times M}) matrix containing the transition weights corresponding
+#'   \item{transition weights}{a size (\code{nsim}\eqn{\times M}) matrix containing the transition weights corresponding
 #'         to the simulated sample.}
 #'   Otherwise, returns a list with the following entries:
-#'   \item{\code{$sample}}{a size (\code{nsim}\eqn{\times d\times}\code{ntimes}) array containing the samples: the dimension
+#'   \item{sample}{a size (\code{nsim}\eqn{\times d\times}\code{ntimes}) array containing the samples: the dimension
 #'      \code{[t, , ]} is the time index, the dimension \code{[, d, ]} indicates the marginal time series, and the dimension
 #'      \code{[, , i]} indicates the i:th set of simulations.}
-#'   \item{\code{$transition_weights}}{a size (\code{nsim}\eqn{\times M \times}\code{ntimes}) array containing the transition weights
+#'   \item{transition_weights}{a size (\code{nsim}\eqn{\times M \times}\code{ntimes}) array containing the transition weights
 #'      corresponding to the sample: the dimension \code{[t, , ]} is the time index, the dimension \code{[, m, ]} indicates the
 #'      regime, and the dimension \code{[, , i]} indicates the i:th set of simulations.}
 #' @seealso \code{\link{predict.stvar}},\code{\link{GIRF}}, \code{\link{GFEVD}},  \code{\link{fitSTVAR}},
@@ -253,7 +253,6 @@ simulate_stvar_int <- function(object, nsim=1, seed=NULL, ..., init_values=NULL,
 
   # GIRF stuff, particularly for reduced form models, which assume Cholesky identification
   if(calc_girf) {
-    R1 <- girf_pars$R1
     all_Omegas_as_matrix <- t(matrix(all_Omegas, nrow=d^2, ncol=M)) # Used for reduced form model GIRF [,m]
   }
 
@@ -279,7 +278,6 @@ simulate_stvar_int <- function(object, nsim=1, seed=NULL, ..., init_values=NULL,
 
   # Initialize data structures
   sample <- array(dim=c(nsim, d, ntimes))
-  component <- matrix(nrow=nsim, ncol=ntimes)
   transition_weights <- array(dim=c(nsim, M, ntimes))
   if(calc_girf) {
     sample2 <- array(dim=c(nsim, d, ntimes))

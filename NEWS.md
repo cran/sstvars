@@ -129,3 +129,9 @@
 * Updated the vignette to match the current version of Virolainen (2025). 
 * Updated the data file usacpu to match the current version of Virolainen (2025).
 * Updated the reference to Lanne and Virolainen (2025).
+
+# sstvarss 1.2.3
+
+* Improved the robustness of the function drawing independent skewed t random variables to extreme values. 
+* Corrected some interpretations related to the counterfactuals in the vignette and function documentations. 
+* Minor updates to the documentation.
