@@ -125,7 +125,7 @@
 # sstvarss 1.2.2
 
 * The returned object from reorder_B_columns, swap_B_signs, and swap_parametrization now includes estimation results from all estimation rounds identically to
-  the original model (i.e., these results do now have the impact matrices nor the parametrization changed).
+  the original model (i.e., these results do now not have the impact matrices nor the parametrization changed).
 * Updated the vignette to match the current version of Virolainen (2025). 
 * Updated the data file usacpu to match the current version of Virolainen (2025).
 * Updated the reference to Lanne and Virolainen (2025).
@@ -135,3 +135,13 @@
 * Improved the robustness of the function drawing independent skewed t random variables to extreme values. 
 * Corrected some interpretations related to the counterfactuals in the vignette and function documentations. 
 * Minor updates to the documentation.
+
+# sstvarss 1.2.4
+
+* Implemented the branch-and-bound method of Gripenberg (1996) for bounding the JSR in C++ for speed improvements in the function "bound_JSR".
+  The old R implementation is still available in the function "bound_JSR_G".
+* Added the function get_penalized_IC to compute the information criteria based on the penalized log-likelihood function for models estimated via penalized ML.
+* Added the functionality to plot so-called "shotgun plots" for the GIRFs. To plot a shotgun plot, use the argument "type=shotgun" the plot method for GIRF objects.
+* Updated the reference Virolainen (2025) to Virolainen (in press) (identification by non-Gaussianity in structural smooth transition vector autoregressive models)
+* Updated the discussion on identitication by non-Gaussianity in the vignette to match the latest version of the paper introducing the method (Virolainen, in press).
+* Minor updates to the documentation, including typo fixes etc.

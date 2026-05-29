@@ -247,6 +247,9 @@ If you wish to estimate a structural model, estimate first the reduced form mode
  \strong{Passing arguments to the genetic algorithm:} The settings of the genetic algorithm can be adjusted by passing arguments
  to it via the dot parameters. See all the available options from the documentation of the function \code{GAfit} with the command
  \code{??GAfit}.
+
+ Note that even when penalized ML estimation is used, information criteria values are calculated based on the non-penalized log-likelihood function.
+ If you wish to calculate the information criteria values using penalized log-likelihood function, you can use the function \code{get_penalized_IC}.
 }
 \section{S3 methods}{
 
@@ -358,9 +361,8 @@ plot(fitlogistic32w) # Plot the fitted transition weights
      \emph{Econometric Reviews}, \strong{39}:4, 407-414.
    \item Tsay R. 1998. Testing and Modeling Multivariate Threshold Models.
      \emph{Journal of the American Statistical Association}, \strong{93}:443, 1188-1202.
-   \item Virolainen S. 2025. Identification by non-Gaussianity in structural
-      smooth transition vector autoregressive models. Unpublished working
-      paper, available as arXiv:2404.19707.
+   \item Virolainen S. in press. Identification by non-Gaussianity in structural
+      smooth transition vector autoregressive models. \emph{Econometric Reviews}.
  }
 }
 \seealso{

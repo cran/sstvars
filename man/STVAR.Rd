@@ -28,7 +28,7 @@ STVAR(
   weight_constraints = NULL,
   B_constraints = NULL,
   penalized = FALSE,
-  penalty_params = c(0.05, 1),
+  penalty_params = c(0.05, 0.02),
   allow_unstab = FALSE,
   calc_std_errors = FALSE
 )
@@ -364,9 +364,8 @@ summary(mod112) # Summary printout
      \emph{Journal of Economic Dynamics & Control}, \strong{84}, 43-57.
    \item Tsay R. 1998. Testing and Modeling Multivariate Threshold Models.
      \emph{Journal of the American Statistical Association}, \strong{93}:443, 1188-1202.
-   \item Virolainen S. 2025. Identification by non-Gaussianity in structural
-      smooth transition vector autoregressive models. Unpublished working
-      paper, available as arXiv:2404.19707.
+   \item Virolainen S. in press. Identification by non-Gaussianity in structural
+      smooth transition vector autoregressive models. \emph{Econometric Reviews}.
  }
 }
 \seealso{
