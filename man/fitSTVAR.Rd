@@ -22,6 +22,7 @@ fitSTVAR(
   allow_unstab,
   min_obs_coef = 3,
   sparse_grid = FALSE,
+  weightfun_grid = NULL,
   h = 0.001,
   nrounds,
   ncores = 2,
@@ -131,6 +132,11 @@ the number of AR matrix parameters in each regimes is simply assumed to be \code
 
 \item{sparse_grid}{should the grid of weight function values in LS/NLS estimation be more sparse (speeding up the estimation)?}
 
+\item{weightfun_grid}{a list containing finite numeric grid points for the location parameter in \code{location} and/or
+the strictly positive scale parameter in \code{gamma} in the NLS step of three-phase estimation. Available only
+for logistic and exponential weight functions with freely estimated weight parameters. If \code{NULL}, the default
+grids are used. If only one grid is specified, the default grid is used for the other parameter.}
+
 \item{h}{the strictly positive difference used in the finite difference approximation of the gradient used in numerical optimization.}
 
 \item{nrounds}{the number of estimation rounds that should be performed. The default is \code{(M*ncol(data))^3}
@@ -196,6 +202,11 @@ If you wish to estimate a structural model, estimate first the reduced form mode
  number of estimation rounds, and thereby typically speeds up the estimation substantially. On the other hand, the three-phase
  procedure tends to produce estimates close to the initial (penalized) LS estimates, while the two-phase procedure explores
  the parameter space more thoroughly (when a large enough number of estimation rounds is ran).
+
+ With threshold weights and Gaussian errors, the LS step selects the threshold vector according to the Gaussian
+ log-likelihood evaluated at the LS estimates and regime-specific residual covariance matrices, including the
+ stability penalty if \code{penalized=TRUE}. With other conditional distributions, the (penalized) sum of squared
+ residuals is used.
 
  \strong{Penalized estimation.} The penalized estimation (\code{penalized=TRUE}) maximizes the penalized log-likelihood function
  in which a penalty term is added. The penalty term becomes nonzero when the parameter values are close to the boundary of the

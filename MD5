@@ -1,11 +1,11 @@
-3ecc5cd2adb3418813888ba3ef105295 *DESCRIPTION
+d744dc8e5ff158a29a4dc016b04588bf *DESCRIPTION
 483332677be8d65e2bf710e35999bbd6 *NAMESPACE
-cafe32f48326151ebbba37b89f519278 *NEWS.md
+8e1c2af57b159799e0445bbd4a0da6b3 *NEWS.md
 f7a3a6a977a236b992e3d5a9a1b84b55 *R/GIRFandGFEVD.R
-17397d8bf27696717604593b0d251dc7 *R/LSest.R
-868980c8cd1c284c57b0d248c87a6167 *R/MAINest.R
+ca4c90d1c0c6322ac439935183a75333 *R/LSest.R
+4f099b5195d5dcbcedd3a61e8f01fadf *R/MAINest.R
 e67abb711c4e774e7166283a3f4d2c11 *R/RcppExports.R
-85ffe93f4753a877c53969fb30e8cee5 *R/STVARconstruction.R
+01dfa88e5e6a3e37085dd93de66cc485 *R/STVARconstruction.R
 ff67baec043570c1f3dfbd8a6df440fd *R/argumentChecks.R
 bfd40539a6eba526b44c715ad8e0e519 *R/counterFactuals.R
 5445e055e4e81d1acbe1c334d9c2dfc0 *R/data.R
@@ -23,7 +23,7 @@ d960372910e8b0faf767b6802bc0ea72 *R/loglikelihood.R
 1430c27a6a32a03f3f407b9dc322906c *R/matcal.R
 3ea31b4981cd9656b85f559dfd3f4f9d *R/miscS3methods.R
 83a0977fb27b68c8d8e67b1fec5d0849 *R/miscellaneous.R
-bcdadf02f276918655a61683120be1fa *R/moreEst.R
+f30d796a6940e2ed16abbce21a0fa48e *R/moreEst.R
 7f58d0edf171f542651e2dce679b8c8e *R/morePlots.R
 b0074062f8587fe3a6d9a6416c9620e6 *R/numericalDifferentiation.R
 5c7e1effddaffa0ef0f8b9a81dac2a16 *R/parameterReforms.R
@@ -45,8 +45,8 @@ a5618243eb2ca48f6a38d19ae1ee7a80 *data/gdpdef.rda
 29bebf019d17ee045872aaa47857791a *data/usacpu.rda
 564f86cc58c964d1987c45e93fe77a5e *data/usamone.rda
 d7c40ee3565ebcfd1c142e532bff9a8e *inst/doc/sstvars-vignette.R
-76f6df24fe004aa2af5e8b89a7c4d190 *inst/doc/sstvars-vignette.Rnw
-144ccbadb320accd73cabc082d8dabd4 *inst/doc/sstvars-vignette.pdf
+ca3d7219c22bc478529f0236cbd819c1 *inst/doc/sstvars-vignette.Rnw
+fb2597acb9cb8861cc7b3b0b37fc7594 *inst/doc/sstvars-vignette.pdf
 f0e55733aef6c8d7ad211ea3d1e2f2e3 *man/GAfit.Rd
 b3c48ee67291edcc58dc304fae23679b *man/GFEVD.Rd
 77d48789216202ed12dd5380b488f8fa *man/GIRF.Rd
@@ -86,11 +86,11 @@ fbf098506e17ab2a5aac54d9db7850c5 *man/check_weightfun_pars.Rd
 29ab741675bcc79650e3de182b9f4f2d *man/create_J_matrix.Rd
 1eca4ed6249ae8f3be870c9eebc9862d *man/diag_Omegas.Rd
 a667b56b068bbeba21aaa159e751315c *man/diagnostic_plot.Rd
-723e8347759193d5b4baa247f33e30ec *man/estim_LS.Rd
-e7759cc93ade8648c2ce2ca93eefe689 *man/estim_NLS.Rd
+53e4c3f9aaf99fa78f036fc88d5fe4ff *man/estim_LS.Rd
+c61312505e6e1968478ac27139e76f0f *man/estim_NLS.Rd
 8b1313be490413f38be9f53b1319ea45 *man/filter_estimates.Rd
 68ce63a9e295b14a910782a914cb1f30 *man/fitSSTVAR.Rd
-4347936527d84a381440ece2d0421b48 *man/fitSTVAR.Rd
+523e9678a5b72b890854f38e226a425f *man/fitSTVAR.Rd
 d84df48beff38025808c630d5b3242bb *man/fitbsSSTVAR.Rd
 146a1a2c5c2da3a343c17f8b01bba3a5 *man/form_boldA.Rd
 cef90f8ca62d217f92a4063cb134f0f4 *man/format_valuef.Rd
@@ -197,4 +197,4 @@ ca9866f3978f0782c27adc347f8371ff *src/ind_skewed_t_densities_Cpp.cpp
 b14396d2d8d3c0ee5bb0a992349a0183 *vignettes/figures/profilelogliks.pdf
 45a8a23744974557f7992391f9de52c2 *vignettes/figures/seriesplot.pdf
 13fef6a9c908abe560b3b732abc943cc *vignettes/refs.bib
-76f6df24fe004aa2af5e8b89a7c4d190 *vignettes/sstvars-vignette.Rnw
+ca3d7219c22bc478529f0236cbd819c1 *vignettes/sstvars-vignette.Rnw

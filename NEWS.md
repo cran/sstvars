@@ -150,3 +150,14 @@
 
 * Updated the reference to Virolainen (in press) (identification by non-Gaussianity in structural smooth transition vector autoregressive models); it is now Virolainen (2026).
 * Updated the maintainer contact information.
+
+# sstvarss 1.2.6
+
+* Now with threshold weights and Gaussian errors, the LS step selects the threshold vector according to the Gaussian log-likelihood evaluated at
+  the LS estimates and regime-specific residual covariance matrices, including the stability penalty if penalized=TRUE. With other conditional distributions,
+  the old behavior is retained and the (penalized) sum of squared residuals is used. 
+* It is now possible to use custom gamma and location parameter grids for the NLS estimation with the argument weightfun_grid when the logistic or exponential
+  weight function is used.
+* Bug fix: Fixed a bug that caused error in certain cases when estimating models with weight_function="exogenous".
+* Bug fix: Due to R's BFGS behavior a mismatch could sometimes occurred between the recorded log-likelihood and estimates in fitSTVAR. 
+  This is now fixed by always recalculating the log-likelihood using the final estimates.
